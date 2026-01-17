@@ -7,11 +7,11 @@ export class Particles {
         this.camera = camera;
         this.count = 20000;
 
-        this.mouse = new THREE.Vector2(0, 0);
-        this.raycaster = new THREE.Raycaster();
-        this.planeNormal = new THREE.Vector3(0, 0, 1);
-        this.planeConstant = 0;
-        this.plane = new THREE.Plane(this.planeNormal, this.planeConstant);
+        this.mouse = new THREE.Vector2(0, 0); // Normalized for screen
+        this.targetRotation = new THREE.Vector2(0, 0); // For head tracking
+
+        this.blinkVal = 0;
+        this.isBlinking = false;
 
         this.init();
         this.addEvents();
@@ -20,22 +20,15 @@ export class Particles {
     init() {
         const geometry = new THREE.BufferGeometry();
 
-        // Attributes
-        const positions = new Float32Array(this.count * 3);
-        const targetPositions = FaceGeometry.generate(this.count);
-        const randoms = new Float32Array(this.count * 3);
+        // Generate Face Data
+        const { positions, types } = FaceGeometry.generate(this.count);
 
-        for (let i = 0; i < this.count * 3; i++) {
-            // Initial positions: Random Cloud spread out
-            positions[i] = (Math.random() - 0.5) * 10;
-
-            // Randoms for noise
-            randoms[i] = Math.random();
-        }
+        const randoms = new Float32Array(this.count);
+        for (let i = 0; i < this.count; i++) randoms[i] = Math.random();
 
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute('targetPosition', new THREE.BufferAttribute(targetPositions, 3));
-        geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1)); // We can repack (x,y,z) to just 1 float if needed
+        geometry.setAttribute('aType', new THREE.BufferAttribute(types, 1));
+        geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1));
 
         // Shader Material
         this.material = new THREE.ShaderMaterial({
@@ -43,7 +36,7 @@ export class Particles {
             fragmentShader: this.fragmentShader(),
             uniforms: {
                 uTime: { value: 0 },
-                uMouse: { value: new THREE.Vector3(0, 0, 0) }, // Mouse World Position
+                uBlink: { value: 0 }, // 0 = Open, 1 = Closed
                 uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
             },
             transparent: true,
@@ -53,91 +46,122 @@ export class Particles {
 
         this.points = new THREE.Points(geometry, this.material);
         this.scene.add(this.points);
+
+        // Group for rotation? No, let's rotate the points object directly.
     }
 
     vertexShader() {
         return `
             uniform float uTime;
-            uniform vec3 uMouse;
+            uniform float uBlink;
             
-            attribute vec3 targetPosition;
+            attribute float aType; // 0: Skin, 1: Left Eye, 2: Right Eye
             attribute float aRandom;
             
+            varying float vType;
             varying float vAlpha;
-            varying float vDist;
-            
-            // Simplex noise helper (optional, or simple sin wave)
-            // Using simple sine movements for now
             
             void main() {
-                vec3 pos = position; // Start with base position (we will mix later, but for now let's just use target)
+                vec3 pos = position;
+                vType = aType;
                 
-                // For this step, let's just render the target face to verify shape
-                pos = targetPosition;
+                // Tech/Digital Glitch Movement (stuttery)
+                // float glitch = step(0.98, sin(uTime * 10.0 + pos.y * 5.0));
+                // pos.x += glitch * 0.02;
                 
-                // Noise / Float movement
-                pos.x += sin(uTime * 0.5 + aRandom * 10.0) * 0.02;
-                pos.y += cos(uTime * 0.3 + aRandom * 20.0) * 0.02;
+                // Subtle breathing
+                pos.z += sin(uTime + pos.x) * 0.01;
                 
-                // Mouse Interaction (Repel/Attract)
-                float dist = distance(pos, uMouse);
-                vDist = dist;
-                
-                if (dist < 0.5) {
-                    vec3 dir = normalize(pos - uMouse);
-                    // Push away
-                    pos += dir * (0.5 - dist) * 0.5;
+                // Blinking Logic
+                if (aType > 0.5) {
+                    // It's an eye (1 or 2)
+                    // If blink is active, squish Y towards center of eye?
+                    // Better: Mask them out or move eyelids.
+                    // Let's just scale Y of eye points to 0 when blinking
+                    
+                    // Simple "shut" animation:
+                    // If uBlink > 0, we contract the eye points vertically towards their center?
+                    // Center of L Eye ~ (-0.35, 0.1), R Eye ~ (0.35, 0.1)
+                    
+                    float eyeY = 0.1;
+                    if (uBlink > 0.0) {
+                       pos.y = mix(pos.y, eyeY, uBlink); 
+                    }
                 }
                 
                 vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
                 gl_Position = projectionMatrix * mvPosition;
                 
-                // Size attenuation
                 gl_PointSize = (4.0 / -mvPosition.z);
                 
-                vAlpha = 0.5 + 0.5 * sin(uTime + aRandom * 10.0);
+                // Twinkle
+                vAlpha = 0.8 + 0.2 * sin(uTime * 5.0 + aRandom * 100.0);
             }
         `;
     }
 
     fragmentShader() {
         return `
+            varying float vType;
             varying float vAlpha;
-            varying float vDist;
             
             void main() {
-                // Circular particle
                 vec2 center = gl_PointCoord - 0.5;
                 float dist = length(center);
                 if (dist > 0.5) discard;
                 
-                // Soft edge
                 float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
                 
-                // Color (Greenish/Gold for Shrek mirror vibe?)
-                // Let's start with a mystical cyan/green mix
-                vec3 color = mix(vec3(0.2, 0.8, 0.5), vec3(0.2, 0.5, 1.0), vDist); // Green -> Blue away from mouse
+                // Viki Colors: Clean White / Tech Blue / Hologram
+                vec3 colSkin = vec3(0.5, 0.7, 1.0); // Translucent blueish white
+                vec3 colEye = vec3(1.0, 1.0, 1.0); // Bright white eyes
                 
-                gl_FragColor = vec4(color, alpha * vAlpha * 0.8);
+                vec3 finalColor = (vType > 0.5) ? colEye : colSkin;
+                
+                // Make eyes glow brighter
+                float intensity = (vType > 0.5) ? 1.5 : 0.6;
+                
+                gl_FragColor = vec4(finalColor * intensity, alpha * vAlpha);
             }
         `;
     }
 
     addEvents() {
         window.addEventListener('mousemove', (e) => {
-            // Normalized Device Coordinates
+            // Normalized -1 to 1
             this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
-            // Raycast to find world position on a plane at Z=0 (approx face pos)
-            this.raycaster.setFromCamera(this.mouse, this.camera);
-            const intersectPoint = new THREE.Vector3();
-            this.raycaster.ray.intersectPlane(this.plane, intersectPoint);
-
-            if (intersectPoint) {
-                this.material.uniforms.uMouse.value.copy(intersectPoint);
-            }
+            // Calculate target rotation (look at mouse)
+            // Limit rotation angles
+            this.targetRotation.x = this.mouse.y * 0.5; // Pitch (Up/Down)
+            this.targetRotation.y = this.mouse.x * 0.5; // Yaw (Left/Right)
         });
+    }
+
+    triggerBlink() {
+        if (this.isBlinking) return;
+        this.isBlinking = true;
+        let startTime = performance.now();
+        let duration = 200; // ms
+
+        const blinkAnim = () => {
+            let now = performance.now();
+            let progress = (now - startTime) / duration;
+
+            if (progress >= 1) {
+                this.material.uniforms.uBlink.value = 0;
+                this.isBlinking = false;
+                return;
+            }
+
+            // 0 -> 1 -> 0 parbaola-ish
+            // sin(PI * progress)
+            this.material.uniforms.uBlink.value = Math.sin(Math.PI * progress);
+
+            requestAnimationFrame(blinkAnim);
+        };
+        blinkAnim();
     }
 
     onResize(width, height) {
@@ -146,6 +170,9 @@ export class Particles {
 
     update(time) {
         this.material.uniforms.uTime.value = time;
-        // Logic to interpolate positions could go here or in shader
+
+        // Smooth Rotation
+        this.points.rotation.x += (this.targetRotation.x * 0.5 - this.points.rotation.x) * 0.1;
+        this.points.rotation.y += (this.targetRotation.y * 0.5 - this.points.rotation.y) * 0.1;
     }
 }
