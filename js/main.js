@@ -18,8 +18,8 @@ class App {
         // this.scene.background = new THREE.Color(0x050510); // Managed by CSS, but good to have fallback
 
         // Camera
-        this.camera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.1, 1000);
-        this.camera.position.z = 2.5;
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+        this.camera.position.z = 800; // Further zoomed out for better perspective
 
         // Renderer
         this.renderer = new THREE.WebGLRenderer({
