@@ -2,9 +2,8 @@ import { FaceData } from './face-data.js';
 
 export class FaceGeometry {
     static generate(count) {
-        // Mesh Sampling Approach
-        // We have a low-poly mesh in FaceData.
-        // We will sample random points on the surface of these triangles.
+        // Grid-based Sampling for Viki-style ordered look
+        // Instead of pure random sampling, we'll use a structured approach
 
         const positions = new Float32Array(count * 3);
         const types = new Float32Array(count);
@@ -12,7 +11,21 @@ export class FaceGeometry {
         const indices = FaceData.indices;
         const verts = FaceData.vertices;
 
-        // 1. Calculate Triangle Areas
+        // Calculate bounding box
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+        let minZ = Infinity, maxZ = -Infinity;
+
+        for (let i = 0; i < verts.length; i++) {
+            minX = Math.min(minX, verts[i][0]);
+            maxX = Math.max(maxX, verts[i][0]);
+            minY = Math.min(minY, verts[i][1]);
+            maxY = Math.max(maxY, verts[i][1]);
+            minZ = Math.min(minZ, verts[i][2]);
+            maxZ = Math.max(maxZ, verts[i][2]);
+        }
+
+        // Calculate Triangle Areas for weighted sampling
         const areas = [];
         let totalArea = 0;
 
@@ -22,11 +35,9 @@ export class FaceGeometry {
             const v2 = verts[i2];
             const v3 = verts[i3];
 
-            // Vector edges
             const ax = v2[0] - v1[0], ay = v2[1] - v1[1], az = v2[2] - v1[2];
             const bx = v3[0] - v1[0], by = v3[1] - v1[1], bz = v3[2] - v1[2];
 
-            // Cross product length / 2
             const cx = ay * bz - az * by;
             const cy = az * bx - ax * bz;
             const cz = ax * by - ay * bx;
@@ -36,7 +47,7 @@ export class FaceGeometry {
             totalArea += area;
         }
 
-        // 2. Generate Points
+        // Generate Points with structured randomness
         for (let i = 0; i < count; i++) {
             const i3 = i * 3;
 
@@ -56,20 +67,31 @@ export class FaceGeometry {
             const v2 = verts[id2];
             const v3 = verts[id3];
 
-            // Random Point in Triangle (Barycentric)
-            let r1 = Math.random();
-            let r2 = Math.random();
+            // Use structured barycentric coordinates instead of pure random
+            // This creates a more regular grid-like pattern
+            const gridSize = Math.ceil(Math.sqrt(count / indices.length));
+            const localIndex = i % (gridSize * gridSize);
+            const gridX = (localIndex % gridSize) / gridSize;
+            const gridY = Math.floor(localIndex / gridSize) / gridSize;
 
-            if (r1 + r2 > 1) {
-                r1 = 1 - r1;
-                r2 = 1 - r2;
+            // Add small random offset for natural look
+            const r1 = Math.min(0.95, gridX + (Math.random() - 0.5) * 0.15);
+            const r2 = Math.min(0.95, gridY + (Math.random() - 0.5) * 0.15);
+
+            // Ensure valid barycentric coordinates
+            let b1 = Math.max(0, Math.min(1, r1));
+            let b2 = Math.max(0, Math.min(1, r2));
+
+            if (b1 + b2 > 1) {
+                b1 = 1 - b1;
+                b2 = 1 - b2;
             }
 
-            const r3 = 1 - r1 - r2;
+            const b3 = 1 - b1 - b2;
 
-            const x = r1 * v1[0] + r2 * v2[0] + r3 * v3[0];
-            const y = r1 * v1[1] + r2 * v2[1] + r3 * v3[1];
-            const z = r1 * v1[2] + r2 * v2[2] + r3 * v3[2];
+            const x = b1 * v1[0] + b2 * v2[0] + b3 * v3[0];
+            const y = b1 * v1[1] + b2 * v2[1] + b3 * v3[1];
+            const z = b1 * v1[2] + b2 * v2[2] + b3 * v3[2];
 
             positions[i3] = x;
             positions[i3 + 1] = y;
