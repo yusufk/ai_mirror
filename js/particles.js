@@ -13,6 +13,15 @@ export class Particles {
         this.blinkVal = 0;
         this.isBlinking = false;
 
+        this.smileVal = 0;
+        this.isSmiling = false;
+
+        this.eyebrowVal = 0;
+        this.isRaisingEyebrow = false;
+
+        this.talkVal = 0;
+        this.isTalking = false;
+
         this.init();
         this.addEvents();
     }
@@ -36,6 +45,9 @@ export class Particles {
             uniforms: {
                 uTime: { value: 0 },
                 uBlink: { value: 0 },
+                uSmile: { value: 0 },
+                uEyebrow: { value: 0 },
+                uTalk: { value: 0 },
                 uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
             },
             transparent: true,
@@ -51,6 +63,9 @@ export class Particles {
         return `
             uniform float uTime;
             uniform float uBlink;
+            uniform float uSmile;
+            uniform float uEyebrow;
+            uniform float uTalk;
             
             attribute float aType; 
             attribute float aRandom;
@@ -70,18 +85,45 @@ export class Particles {
                 
                 // --- EYE IDENTIFICATION ---
                 vType = 0.0;
-                // Empirical Bounds for Scaled MediaPipe Eyes
-                if (pos.y > 2.0 && pos.y < 12.0) {
-                     if (pos.x > -18.0 && pos.x < -6.0) vType = 1.0; // Left
-                     if (pos.x > 6.0 && pos.x < 18.0) vType = 2.0; // Right
+                // Scaled coordinates: multiply MediaPipe by 45
+                // Original eye range was y: 2-12, x: -18 to -6 and 6-18
+                if (pos.y > 90.0 && pos.y < 540.0) {  // ~2*45 to ~12*45
+                     if (pos.x > -810.0 && pos.x < -270.0) vType = 1.0; // Left eye
+                     if (pos.x > 270.0 && pos.x < 810.0) vType = 2.0; // Right eye
                 }
 
                 // --- BLINKING ---
                 if (vType > 0.5) {
-                    float eyeCenterY = 7.0;
+                    float eyeCenterY = 315.0; // 7.0 * 45
                     if (uBlink > 0.0) {
                        pos.y = mix(pos.y, eyeCenterY, uBlink * 0.9); // Strong blink
                     }
+                }
+                
+                // --- SMILE ---
+                // Mouth area: lower face, center region
+                // Original: y > -15 and y < -5, abs(x) < 15
+                bool isMouth = pos.y > -675.0 && pos.y < -225.0 && abs(pos.x) < 675.0;
+                if (isMouth && uSmile > 0.0) {
+                    // Lift corners of mouth and widen
+                    float mouthCenterY = -450.0; // -10.0 * 45
+                    float distFromCenter = abs(pos.x) / 675.0;
+                    pos.y += uSmile * 135.0 * distFromCenter; // Corners lift more (3.0 * 45)
+                    pos.x *= 1.0 + uSmile * 0.15; // Slight widening
+                }
+                
+                // --- EYEBROW RAISE ---
+                // Eyebrow area: above eyes
+                // Original: y > 10 and y < 18
+                bool isEyebrow = pos.y > 450.0 && pos.y < 810.0;
+                if (isEyebrow && uEyebrow > 0.0) {
+                    pos.y += uEyebrow * 225.0; // Raise eyebrows (5.0 * 45)
+                }
+                
+                // --- TALK ---
+                // Jaw/mouth movement
+                if (isMouth && uTalk > 0.0) {
+                    pos.y -= uTalk * 180.0; // Open mouth by moving lower (4.0 * 45)
                 }
                 
                 // --- ANIMATION ---
@@ -148,6 +190,21 @@ export class Particles {
             this.targetRotation.x = -this.mouse.y * 0.3;
             this.targetRotation.y = this.mouse.x * 0.3;
         });
+
+        // Keyboard controls for expressions
+        window.addEventListener('keydown', (e) => {
+            switch (e.key.toLowerCase()) {
+                case 's':
+                    this.triggerSmile();
+                    break;
+                case 'e':
+                    this.triggerEyebrowRaise();
+                    break;
+                case 't':
+                    this.triggerTalk();
+                    break;
+            }
+        });
     }
 
     triggerBlink() {
@@ -169,6 +226,70 @@ export class Particles {
             requestAnimationFrame(blinkAnim);
         };
         blinkAnim();
+    }
+
+    triggerSmile() {
+        if (this.isSmiling) return;
+        this.isSmiling = true;
+        let startTime = performance.now();
+        let duration = 500; // Slower for smile
+
+        const smileAnim = () => {
+            let now = performance.now();
+            let progress = (now - startTime) / duration;
+
+            if (progress >= 1) {
+                this.material.uniforms.uSmile.value = 0;
+                this.isSmiling = false;
+                return;
+            }
+            this.material.uniforms.uSmile.value = Math.sin(Math.PI * progress);
+            requestAnimationFrame(smileAnim);
+        };
+        smileAnim();
+    }
+
+    triggerEyebrowRaise() {
+        if (this.isRaisingEyebrow) return;
+        this.isRaisingEyebrow = true;
+        let startTime = performance.now();
+        let duration = 400;
+
+        const eyebrowAnim = () => {
+            let now = performance.now();
+            let progress = (now - startTime) / duration;
+
+            if (progress >= 1) {
+                this.material.uniforms.uEyebrow.value = 0;
+                this.isRaisingEyebrow = false;
+                return;
+            }
+            this.material.uniforms.uEyebrow.value = Math.sin(Math.PI * progress);
+            requestAnimationFrame(eyebrowAnim);
+        };
+        eyebrowAnim();
+    }
+
+    triggerTalk() {
+        if (this.isTalking) return;
+        this.isTalking = true;
+        let startTime = performance.now();
+        let duration = 600; // Longer for talking
+
+        const talkAnim = () => {
+            let now = performance.now();
+            let progress = (now - startTime) / duration;
+
+            if (progress >= 1) {
+                this.material.uniforms.uTalk.value = 0;
+                this.isTalking = false;
+                return;
+            }
+            // Multiple bounces for talking effect
+            this.material.uniforms.uTalk.value = Math.abs(Math.sin(Math.PI * progress * 3)) * (1 - progress);
+            requestAnimationFrame(talkAnim);
+        };
+        talkAnim();
     }
 
     onResize(width, height) {
