@@ -62,28 +62,36 @@ export class Particles {
             varying float vAlpha;
             
             void main() {
-                vec3 pos = position;
-                vType = aType;
+                // MediaPipe Canonical Face is usually small (cm).
+                // Scale it up significantly (~10x or more).
+                vec3 pos = position * 30.0; 
+                
+                // Adjust Eye Logic
+                // Since this model has no explicit "Type" attribute for eyes yet (all 0),
+                // we use coordinate bounding boxes for the "Blink" logic.
+                // Canonical Eyes are roughly at Y ~ 2.0 to 5.0?
+                // We need to inspect, but for now let's guess based on standard head size.
+                
+                vType = 0.0;
+                // Rough Bounding Box for eyes (after scaling)
+                // Left Eye
+                if (pos.x < -3.0 && pos.x > -12.0 && pos.y > 0.0 && pos.y < 5.0) vType = 1.0;
+                // Right Eye
+                if (pos.x > 3.0 && pos.x < 12.0 && pos.y > 0.0 && pos.y < 5.0) vType = 2.0;
+
+                vType = max(vType, aType); // Use attribute if present (it's 0)
+
                 
                 // Tech/Digital Glitch Movement (stuttery)
                 // float glitch = step(0.98, sin(uTime * 10.0 + pos.y * 5.0));
                 // pos.x += glitch * 0.02;
                 
                 // Subtle breathing
-                pos.z += sin(uTime + pos.x) * 0.01;
+                pos.z += sin(uTime + pos.x) * 0.1;
                 
                 // Blinking Logic
-                if (aType > 0.5) {
-                    // It's an eye (1 or 2)
-                    // If blink is active, squish Y towards center of eye?
-                    // Better: Mask them out or move eyelids.
-                    // Let's just scale Y of eye points to 0 when blinking
-                    
-                    // Simple "shut" animation:
-                    // If uBlink > 0, we contract the eye points vertically towards their center?
-                    // Center of L Eye ~ (-0.35, 0.1), R Eye ~ (0.35, 0.1)
-                    
-                    float eyeY = 0.1;
+                if (vType > 0.5) {
+                    float eyeY = 2.5; // Approx center
                     if (uBlink > 0.0) {
                        pos.y = mix(pos.y, eyeY, uBlink); 
                     }
@@ -92,7 +100,7 @@ export class Particles {
                 vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
                 gl_Position = projectionMatrix * mvPosition;
                 
-                gl_PointSize = (4.0 / -mvPosition.z);
+                gl_PointSize = (8.0 / -mvPosition.z); // Slightly larger dots
                 
                 // Twinkle
                 vAlpha = 0.8 + 0.2 * sin(uTime * 5.0 + aRandom * 100.0);
@@ -134,7 +142,8 @@ export class Particles {
 
             // Calculate target rotation (look at mouse)
             // Limit rotation angles
-            this.targetRotation.x = this.mouse.y * 0.5; // Pitch (Up/Down)
+            // INVERTED PITCH based on user feedback
+            this.targetRotation.x = -this.mouse.y * 0.5; // Invert Pitch
             this.targetRotation.y = this.mouse.x * 0.5; // Yaw (Left/Right)
         });
     }
