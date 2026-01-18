@@ -27,39 +27,47 @@
 <body>
     <div id="canvas-container"></div>
 
-    <!-- Camera Controls UI -->
-    <div id="controls">
-        <button id="toggle-camera">Enable Camera Tracking</button>
-        <div id="status" class="status">Keyboard Mode: Press S/E/T for expressions</div>
-        <div id="help">
-            <strong>Keyboard Mode:</strong> S = Smile | E = Eyebrow Raise | T = Talk<br>
-            <strong>Camera Mode:</strong> Mirror your expressions in real-time
-        </div>
-    </div>
+    <!-- UI Layer -->
+    <div id="ui-layer">
+        <button id="ui-toggle" title="Toggle UI">👁️</button>
 
-    <!-- Debug Console -->
-    <div id="debug-console" style="display: none;">
-        <h3>Face Tracking Debug</h3>
-        <div class="debug-item">
-            <span>Face Detected:</span> <span id="debug-detected" class="value" style="color: #ff3333;">NO</span>
-        </div>
-        <div class="debug-item">
-            <span>Status:</span> <span id="debug-status" class="value">Inactive</span>
-        </div>
-        <div class="debug-item">
-            <span>Head Rotation:</span> <span id="debug-rotation" class="value">P: 0° Y: 0°</span>
-        </div>
-        <div class="debug-item">
-            <span>Blink (L/R):</span> <span id="debug-blink" class="value">Open / Open</span>
-        </div>
-        <div class="debug-item">
-            <span>Mouth Ratio:</span> <span id="debug-mouth" class="value">0.00</span>
-        </div>
-        <div class="debug-item">
-            <span>Brow Lift:</span> <span id="debug-brow" class="value">0.00</span>
-        </div>
-        <div class="debug-item">
-            <span>FPS:</span> <span id="debug-fps" class="value">0</span>
+        <div id="ui-panel">
+            <!-- Camera Controls UI -->
+            <div id="controls">
+                <button id="toggle-camera">Enable Camera Tracking</button>
+                <div id="status" class="status">Keyboard Mode: Press S/E/T</div>
+                <div id="help">
+                    <strong>S</strong>: Smile | <strong>E</strong>: Brow | <strong>T</strong>: Talk<br>
+                    Or use Camera Mode to mirror.
+                </div>
+            </div>
+
+            <!-- Debug Console -->
+            <div id="debug-console" style="display: none;">
+                <h3>Face Tracking Debug</h3>
+                <div class="debug-item">
+                    <span>Face Detected:</span> <span id="debug-detected" class="value"
+                        style="color: #ff3333;">NO</span>
+                </div>
+                <div class="debug-item">
+                    <span>Status:</span> <span id="debug-status" class="value">Inactive</span>
+                </div>
+                <div class="debug-item">
+                    <span>Head Rotation:</span> <span id="debug-rotation" class="value">P: 0° Y: 0°</span>
+                </div>
+                <div class="debug-item">
+                    <span>Blink (L/R):</span> <span id="debug-blink" class="value">Open / Open</span>
+                </div>
+                <div class="debug-item">
+                    <span>Mouth Ratio:</span> <span id="debug-mouth" class="value">0.00</span>
+                </div>
+                <div class="debug-item">
+                    <span>Brow Lift:</span> <span id="debug-brow" class="value">0.00</span>
+                </div>
+                <div class="debug-item">
+                    <span>FPS:</span> <span id="debug-fps" class="value">0</span>
+                </div>
+            </div>
         </div>
     </div>
 

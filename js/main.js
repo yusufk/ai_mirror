@@ -56,6 +56,19 @@ class App {
         const statusDiv = document.getElementById('status');
         const toggleBtn = document.getElementById('toggle-camera');
 
+        // UI Visiblity Toggle
+        const uiToggleBtn = document.getElementById('ui-toggle');
+        const uiPanel = document.getElementById('ui-panel');
+
+        uiToggleBtn.addEventListener('click', () => {
+            uiPanel.classList.toggle('hidden');
+            // Change icon based on state
+            uiToggleBtn.textContent = uiPanel.classList.contains('hidden') ? '👁️' : '✖️';
+        });
+
+        // Set initial icon
+        uiToggleBtn.textContent = '✖️';
+
         toggleBtn.addEventListener('click', async () => {
             if (!this.cameraMode) {
                 // Enable camera mode
