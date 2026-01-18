@@ -1,16 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Viki - Holographic Face Mirror</title>
     <link rel="stylesheet" href="styles.css">
-    
+
     <!-- MediaPipe Dependencies -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"
+        crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js" crossorigin="anonymous"></script>
-    
+
     <script type="importmap">
         {
             "imports": {
@@ -20,9 +23,10 @@
         }
     </script>
 </head>
+
 <body>
     <div id="canvas-container"></div>
-    
+
     <!-- Camera Controls UI -->
     <div id="controls">
         <button id="toggle-camera">Enable Camera Tracking</button>
@@ -32,7 +36,31 @@
             <strong>Camera Mode:</strong> Mirror your expressions in real-time
         </div>
     </div>
-    
+
+    <!-- Debug Console -->
+    <div id="debug-console" style="display: none;">
+        <h3>Face Tracking Debug</h3>
+        <div class="debug-item">
+            <span>Status:</span> <span id="debug-status" class="value">Inactive</span>
+        </div>
+        <div class="debug-item">
+            <span>Head Rotation:</span> <span id="debug-rotation" class="value">P: 0° Y: 0°</span>
+        </div>
+        <div class="debug-item">
+            <span>Blink (L/R):</span> <span id="debug-blink" class="value">Open / Open</span>
+        </div>
+        <div class="debug-item">
+            <span>Mouth Ratio:</span> <span id="debug-mouth" class="value">0.00</span>
+        </div>
+        <div class="debug-item">
+            <span>Brow Lift:</span> <span id="debug-brow" class="value">0.00</span>
+        </div>
+        <div class="debug-item">
+            <span>FPS:</span> <span id="debug-fps" class="value">0</span>
+        </div>
+    </div>
+
     <script type="module" src="./js/main.js"></script>
 </body>
+
 </html>

@@ -109,50 +109,55 @@ export class Particles {
                 float distEyeR = distance(pos.xy, vec2(eyeR_X, eyeCenterY));
                 
                 // Radius of influence for eyes
-                float eyeRadius = 250.0; 
+                float eyeRadius = 300.0; 
                 
                 if (uBlink > 0.0) {
-                    // Left Eye
+                    // Left Eye - Smoother weighted pull to center
                     float influenceL = smoothstep(eyeRadius, 0.0, distEyeL);
-                    if (pos.y > eyeCenterY && influenceL > 0.0) {
-                        pos.y = mix(pos.y, eyeCenterY, uBlink * influenceL);
-                    }
-                    else if (pos.y < eyeCenterY && influenceL > 0.0) {
-                         pos.y = mix(pos.y, eyeCenterY, uBlink * influenceL * 0.5); // Lower lid moves less
+                    if (influenceL > 0.0) {
+                        // Upper lid moves down more than lower lid moves up (approx 70/30 split)
+                        float targetY = eyeCenterY;
+                        float offset = (pos.y - targetY);
+                        if (offset > 0.0) {
+                            pos.y -= offset * uBlink * influenceL * 1.0; // Upper lid closes fully
+                        } else {
+                            pos.y -= offset * uBlink * influenceL * 0.3; // Lower lid moves up slightly
+                        }
                     }
                     
                     // Right Eye
                     float influenceR = smoothstep(eyeRadius, 0.0, distEyeR);
-                     if (pos.y > eyeCenterY && influenceR > 0.0) {
-                        pos.y = mix(pos.y, eyeCenterY, uBlink * influenceR);
-                    }
-                    else if (pos.y < eyeCenterY && influenceR > 0.0) {
-                         pos.y = mix(pos.y, eyeCenterY, uBlink * influenceR * 0.5);
+                    if (influenceR > 0.0) {
+                         float targetY = eyeCenterY;
+                        float offset = (pos.y - targetY);
+                        if (offset > 0.0) {
+                            pos.y -= offset * uBlink * influenceR * 1.0;
+                        } else {
+                            pos.y -= offset * uBlink * influenceR * 0.3;
+                        }
                     }
                 }
                 
                 // --- SMILE ---
-                // Organic mouth deformation
+                // Organic mouth deformation - Simpler, cleaner curve
                 vec2 mouthCenter = vec2(0.0, -450.0); // -10.0 * 45
                 float distMouth = distance(pos.xy, mouthCenter);
-                float mouthRadius = 500.0;
+                float mouthRadius = 600.0;
                 
                 if (uSmile > 0.0 && distMouth < mouthRadius) {
                     float influence = smoothstep(mouthRadius, 0.0, distMouth);
                     
-                    // Calculate radial angle to lift corners more
-                    float xFactor = abs(pos.x) / 400.0; // Normalized x distance
+                    // Normalize X (-1 to 1) within mouth region
+                    float xFactor = clamp(pos.x / 600.0, -1.0, 1.0);
                     
-                    // Lift corners (parabolic)
-                    pos.y += uSmile * 200.0 * xFactor * xFactor * influence;
+                    // Quadratic curve for smile: y = x^2
+                    float lift = xFactor * xFactor; 
                     
-                    // Widen mouth
-                    pos.x += sign(pos.x) * uSmile * 50.0 * influence;
+                    // Apply lift to corners (simple additive offset)
+                    pos.y += uSmile * 250.0 * lift * influence;
                     
-                    // Push cheeks up slightly
-                    if (pos.y > -300.0) {
-                        pos.y += uSmile * 50.0 * influence * 0.5;
-                    }
+                    // Widen mouth slightly
+                    pos.x += sign(pos.x) * uSmile * 80.0 * influence;
                 }
                 
                 // --- EYEBROW RAISE ---
@@ -160,11 +165,11 @@ export class Particles {
                 float browY = 500.0;
                 if (uEyebrow > 0.0 && pos.y > 300.0) {
                     float distBrow = abs(pos.y - browY);
-                    float influence = smoothstep(600.0, 0.0, distBrow);
+                    float influence = smoothstep(800.0, 0.0, distBrow);
                     
-                    // Arch shape
-                    float arch = 1.0 - (abs(pos.x) / 900.0);
-                    pos.y += uEyebrow * 150.0 * influence * arch;
+                    // Simple uniform lift with side arch
+                    float arch = 1.0 + (abs(pos.x) / 900.0) * 0.5; // Sides lift more
+                    pos.y += uEyebrow * 180.0 * influence * arch;
                 }
                 
                 // --- TALK ---

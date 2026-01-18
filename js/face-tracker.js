@@ -24,6 +24,15 @@ export class FaceTracker {
         // Smoothing
         this.rotationX = 0;
         this.rotationY = 0;
+
+        // Debug
+        this.lastFrameTime = 0;
+        this.frameCount = 0;
+        this.fps = 0;
+        setInterval(() => {
+            this.fps = this.frameCount;
+            this.frameCount = 0;
+        }, 1000);
     }
 
     async initialize() {
@@ -91,6 +100,11 @@ export class FaceTracker {
             await this.camera.start();
             console.log("Camera started");
             this.isActive = true;
+
+            // Show debug console
+            const debugConsole = document.getElementById('debug-console');
+            if (debugConsole) debugConsole.style.display = 'block';
+
             return true;
         } catch (error) {
             console.error('Failed to start camera:', error);
@@ -120,6 +134,27 @@ export class FaceTracker {
         this.detectSmile(landmarks);
         this.detectEyebrowRaise(landmarks);
         this.detectHeadRotation(landmarks);
+
+        // Update debug console
+        this.frameCount++;
+        this.updateDebug(landmarks);
+    }
+
+    updateDebug(landmarks) {
+        const consoleEl = document.getElementById('debug-console');
+        if (consoleEl.style.display === 'none') return;
+
+        // Status
+        document.getElementById('debug-status').textContent = 'Tracking';
+        document.getElementById('debug-status').style.color = '#00ff88';
+
+        // Rotation
+        const pitch = Math.round(this.rotationX * (180 / Math.PI));
+        const yaw = Math.round(this.rotationY * (180 / Math.PI));
+        document.getElementById('debug-rotation').textContent = `P: ${pitch}° Y: ${yaw}°`;
+
+        // FPS
+        document.getElementById('debug-fps').textContent = this.fps;
     }
 
     detectBlink(landmarks) {
@@ -144,6 +179,13 @@ export class FaceTracker {
             if (this.onBlink) {
                 this.onBlink();
             }
+        }
+
+        // Debug
+        const debugEl = document.getElementById('debug-blink');
+        if (debugEl) {
+            debugEl.textContent = `${leftClosed ? 'CLOSED' : 'Open'} / ${rightClosed ? 'CLOSED' : 'Open'}`;
+            debugEl.style.color = (leftClosed || rightClosed) ? '#00ff88' : 'white';
         }
 
         this.prevLeftEyeOpen = !leftClosed;
@@ -182,6 +224,13 @@ export class FaceTracker {
         const smileRatio = mouthWidth / (mouthHeight + 0.001);
         const SMILE_THRESHOLD = 3.0;
 
+        // Debug output
+        const debugEl = document.getElementById('debug-mouth');
+        if (debugEl) {
+            debugEl.textContent = `${smileRatio.toFixed(2)} / ${SMILE_THRESHOLD}`;
+            debugEl.style.color = smileRatio > SMILE_THRESHOLD ? '#00ff88' : 'white';
+        }
+
         const isSmiling = smileRatio > SMILE_THRESHOLD;
 
         // Trigger on rising edge (just started smiling)
@@ -209,6 +258,13 @@ export class FaceTracker {
         const avgDist = (leftDist + rightDist) / 2;
 
         const EYEBROW_THRESHOLD = 0.08; // Raised eyebrows
+
+        // Debug
+        const debugEl = document.getElementById('debug-brow');
+        if (debugEl) {
+            debugEl.textContent = `${avgDist.toFixed(3)} / ${EYEBROW_THRESHOLD}`;
+            debugEl.style.color = avgDist > EYEBROW_THRESHOLD ? '#00ff88' : 'white';
+        }
 
         const isRaised = avgDist > EYEBROW_THRESHOLD;
 
