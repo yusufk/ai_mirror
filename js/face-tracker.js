@@ -71,15 +71,25 @@ export class FaceTracker {
             // Initialize camera
             this.camera = new Camera(this.videoElement, {
                 onFrame: async () => {
+                    // console.log("Camera frame tick"); // Debug loop
                     if (this.isActive) {
-                        await this.faceMesh.send({ image: this.videoElement });
+                        try {
+                            // verify video element has data
+                            if (this.videoElement.readyState === 4) {
+                                await this.faceMesh.send({ image: this.videoElement });
+                            }
+                        } catch (e) {
+                            console.error("Error sending frame to FaceMesh:", e);
+                        }
                     }
                 },
                 width: 640,
                 height: 480
             });
 
+            console.log("Starting camera...");
             await this.camera.start();
+            console.log("Camera started");
             this.isActive = true;
             return true;
         } catch (error) {
@@ -96,10 +106,13 @@ export class FaceTracker {
     }
 
     onResults(results) {
+        // console.log("FaceTracker results:", results); // Uncomment for verbose logging
         if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+            // console.log("No faces detected");
             return;
         }
 
+        // console.log("Face detected!");
         const landmarks = results.multiFaceLandmarks[0];
 
         // Detect expressions
