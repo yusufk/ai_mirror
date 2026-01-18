@@ -6,9 +6,10 @@
 
 body {
     overflow: hidden;
-    background-color: #050510; /* Deep mystical dark blue/black */
+    background-color: #050510;
+    /* Deep mystical dark blue/black */
     color: white;
-    font-family: sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 #canvas-container {
@@ -18,4 +19,70 @@ body {
     width: 100vw;
     height: 100vh;
     z-index: 1;
+}
+
+#controls {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    text-align: center;
+    background: rgba(0, 10, 30, 0.6);
+    padding: 20px;
+    border-radius: 15px;
+    border: 1px solid rgba(100, 200, 255, 0.2);
+    backdrop-filter: blur(10px);
+    width: 90%;
+    max-width: 500px;
+}
+
+#toggle-camera {
+    background: linear-gradient(135deg, #00c6ff, #0072ff);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 15px rgba(0, 198, 255, 0.4);
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#toggle-camera:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 25px rgba(0, 198, 255, 0.6);
+}
+
+.status {
+    margin: 10px 0;
+    font-size: 14px;
+    color: #aaddff;
+}
+
+.status.active {
+    color: #00ff88;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
+.status.error {
+    color: #ff4444;
+}
+
+#help {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.6;
+    margin-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 10px;
+}
+
+strong {
+    color: white;
 }

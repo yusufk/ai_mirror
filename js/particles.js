@@ -22,6 +22,10 @@ export class Particles {
         this.talkVal = 0;
         this.isTalking = false;
 
+        // Camera tracking mode
+        this.cameraMode = false;
+        this.trackedRotation = new THREE.Vector2(0, 0);
+
         this.init();
         this.addEvents();
     }
@@ -92,38 +96,82 @@ export class Particles {
                      if (pos.x > 270.0 && pos.x < 810.0) vType = 2.0; // Right eye
                 }
 
+                // --- ANIMATION LOGIC ---
+                // We use distance fields for organic deformation
+                
                 // --- BLINKING ---
-                if (vType > 0.5) {
-                    float eyeCenterY = 315.0; // 7.0 * 45
-                    if (uBlink > 0.0) {
-                       pos.y = mix(pos.y, eyeCenterY, uBlink * 0.9); // Strong blink
+                // Smooth falloff around eye center
+                float eyeCenterY = 315.0; // ~7.0 * 45
+                float eyeL_X = -540.0; // -12 * 45
+                float eyeR_X = 540.0;  // 12 * 45
+                
+                float distEyeL = distance(pos.xy, vec2(eyeL_X, eyeCenterY));
+                float distEyeR = distance(pos.xy, vec2(eyeR_X, eyeCenterY));
+                
+                // Radius of influence for eyes
+                float eyeRadius = 250.0; 
+                
+                if (uBlink > 0.0) {
+                    // Left Eye
+                    float influenceL = smoothstep(eyeRadius, 0.0, distEyeL);
+                    if (pos.y > eyeCenterY && influenceL > 0.0) {
+                        pos.y = mix(pos.y, eyeCenterY, uBlink * influenceL);
+                    }
+                    else if (pos.y < eyeCenterY && influenceL > 0.0) {
+                         pos.y = mix(pos.y, eyeCenterY, uBlink * influenceL * 0.5); // Lower lid moves less
+                    }
+                    
+                    // Right Eye
+                    float influenceR = smoothstep(eyeRadius, 0.0, distEyeR);
+                     if (pos.y > eyeCenterY && influenceR > 0.0) {
+                        pos.y = mix(pos.y, eyeCenterY, uBlink * influenceR);
+                    }
+                    else if (pos.y < eyeCenterY && influenceR > 0.0) {
+                         pos.y = mix(pos.y, eyeCenterY, uBlink * influenceR * 0.5);
                     }
                 }
                 
                 // --- SMILE ---
-                // Mouth area: lower face, center region
-                // Original: y > -15 and y < -5, abs(x) < 15
-                bool isMouth = pos.y > -675.0 && pos.y < -225.0 && abs(pos.x) < 675.0;
-                if (isMouth && uSmile > 0.0) {
-                    // Lift corners of mouth and widen
-                    float mouthCenterY = -450.0; // -10.0 * 45
-                    float distFromCenter = abs(pos.x) / 675.0;
-                    pos.y += uSmile * 135.0 * distFromCenter; // Corners lift more (3.0 * 45)
-                    pos.x *= 1.0 + uSmile * 0.15; // Slight widening
+                // Organic mouth deformation
+                vec2 mouthCenter = vec2(0.0, -450.0); // -10.0 * 45
+                float distMouth = distance(pos.xy, mouthCenter);
+                float mouthRadius = 500.0;
+                
+                if (uSmile > 0.0 && distMouth < mouthRadius) {
+                    float influence = smoothstep(mouthRadius, 0.0, distMouth);
+                    
+                    // Calculate radial angle to lift corners more
+                    float xFactor = abs(pos.x) / 400.0; // Normalized x distance
+                    
+                    // Lift corners (parabolic)
+                    pos.y += uSmile * 200.0 * xFactor * xFactor * influence;
+                    
+                    // Widen mouth
+                    pos.x += sign(pos.x) * uSmile * 50.0 * influence;
+                    
+                    // Push cheeks up slightly
+                    if (pos.y > -300.0) {
+                        pos.y += uSmile * 50.0 * influence * 0.5;
+                    }
                 }
                 
                 // --- EYEBROW RAISE ---
-                // Eyebrow area: above eyes
-                // Original: y > 10 and y < 18
-                bool isEyebrow = pos.y > 450.0 && pos.y < 810.0;
-                if (isEyebrow && uEyebrow > 0.0) {
-                    pos.y += uEyebrow * 225.0; // Raise eyebrows (5.0 * 45)
+                // Forehead influence
+                float browY = 500.0;
+                if (uEyebrow > 0.0 && pos.y > 300.0) {
+                    float distBrow = abs(pos.y - browY);
+                    float influence = smoothstep(600.0, 0.0, distBrow);
+                    
+                    // Arch shape
+                    float arch = 1.0 - (abs(pos.x) / 900.0);
+                    pos.y += uEyebrow * 150.0 * influence * arch;
                 }
                 
                 // --- TALK ---
-                // Jaw/mouth movement
-                if (isMouth && uTalk > 0.0) {
-                    pos.y -= uTalk * 180.0; // Open mouth by moving lower (4.0 * 45)
+                // Jaw movement (simple vertical drop with falloff)
+                if (uTalk > 0.0 && pos.y < -200.0) {
+                    float jawInfluence = smoothstep(-200.0, -900.0, pos.y);
+                    pos.y -= uTalk * 250.0 * jawInfluence;
                 }
                 
                 // --- ANIMATION ---
@@ -166,9 +214,11 @@ export class Particles {
                 vec3 colHighlight = vec3(0.95, 0.98, 1.0); // Nearly pure white
                 
                 // Mix based on "Elevation" (Y) to highlight brow/eyes/lips area
-                // Y range is approx -20 (Chin) to +20 (Forehead)
-                // Highlight middle band (-5 to 10)
-                float highlightBand = smoothstep(-15.0, 0.0, vElevation) * (1.0 - smoothstep(10.0, 20.0, vElevation));
+                // Y range derived from approx -20 to +20 (raw) -> Scaled in Vertex
+                // Here vElevation is already scaled.
+                
+                // Highlight middle band
+                float highlightBand = smoothstep(-675.0, 0.0, vElevation) * (1.0 - smoothstep(450.0, 900.0, vElevation));
                 
                 vec3 skinColor = mix(colBase, colHighlight, highlightBand * 0.8);
                 
@@ -193,6 +243,9 @@ export class Particles {
 
         // Keyboard controls for expressions
         window.addEventListener('keydown', (e) => {
+            // Only process keyboard if not in camera mode
+            if (this.cameraMode) return;
+
             switch (e.key.toLowerCase()) {
                 case 's':
                     this.triggerSmile();
@@ -205,6 +258,29 @@ export class Particles {
                     break;
             }
         });
+    }
+
+    // Camera mode methods
+    setCameraMode(enabled) {
+        this.cameraMode = enabled;
+    }
+
+    onCameraBlink() {
+        this.triggerBlink();
+    }
+
+    onCameraSmile() {
+        this.triggerSmile();
+    }
+
+    onCameraEyebrowRaise() {
+        this.triggerEyebrowRaise();
+    }
+
+    onCameraRotation(pitchDeg, yawDeg) {
+        // Convert degrees to radians and update tracked rotation
+        this.trackedRotation.x = pitchDeg * (Math.PI / 180);
+        this.trackedRotation.y = yawDeg * (Math.PI / 180);
     }
 
     triggerBlink() {
@@ -298,7 +374,14 @@ export class Particles {
 
     update(time) {
         this.material.uniforms.uTime.value = time;
-        this.points.rotation.x += (this.targetRotation.x - this.points.rotation.x) * 0.1;
-        this.points.rotation.y += (this.targetRotation.y - this.points.rotation.y) * 0.1;
+
+        // Use camera rotation if in camera mode, otherwise use mouse
+        if (this.cameraMode) {
+            this.points.rotation.x += (this.trackedRotation.x - this.points.rotation.x) * 0.15;
+            this.points.rotation.y += (this.trackedRotation.y - this.points.rotation.y) * 0.15;
+        } else {
+            this.points.rotation.x += (this.targetRotation.x - this.points.rotation.x) * 0.1;
+            this.points.rotation.y += (this.targetRotation.y - this.points.rotation.y) * 0.1;
+        }
     }
 }

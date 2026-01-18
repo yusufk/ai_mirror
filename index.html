@@ -3,8 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mirror Face</title>
+    <title>Viki - Holographic Face Mirror</title>
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- MediaPipe Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js" crossorigin="anonymous"></script>
+    
     <script type="importmap">
         {
             "imports": {
@@ -16,6 +22,17 @@
 </head>
 <body>
     <div id="canvas-container"></div>
+    
+    <!-- Camera Controls UI -->
+    <div id="controls">
+        <button id="toggle-camera">Enable Camera Tracking</button>
+        <div id="status" class="status">Keyboard Mode: Press S/E/T for expressions</div>
+        <div id="help">
+            <strong>Keyboard Mode:</strong> S = Smile | E = Eyebrow Raise | T = Talk<br>
+            <strong>Camera Mode:</strong> Mirror your expressions in real-time
+        </div>
+    </div>
+    
     <script type="module" src="./js/main.js"></script>
 </body>
 </html>

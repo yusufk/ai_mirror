@@ -1,13 +1,17 @@
 import * as THREE from 'three';
 import { Particles } from './particles.js';
+import { FaceTracker } from './face-tracker.js';
 
 class App {
     constructor() {
         this.container = document.getElementById('canvas-container');
         this.width = window.innerWidth;
         this.height = window.innerHeight;
+        this.cameraMode = false;
+        this.faceTracker = null;
 
         this.init();
+        this.setupUI();
         this.animate();
         this.setupResize();
     }
@@ -33,6 +37,50 @@ class App {
 
         // Particles
         this.particles = new Particles(this.scene, this.camera);
+
+        // Face Tracker
+        this.faceTracker = new FaceTracker();
+        this.connectFaceTracker();
+    }
+
+    connectFaceTracker() {
+        this.faceTracker.onBlink = () => this.particles.onCameraBlink();
+        this.faceTracker.onSmile = () => this.particles.onCameraSmile();
+        this.faceTracker.onEyebrowRaise = () => this.particles.onCameraEyebrowRaise();
+        this.faceTracker.onRotation = (pitch, yaw) => this.particles.onCameraRotation(pitch, yaw);
+    }
+
+    setupUI() {
+        const controls = document.getElementById('controls');
+        const statusDiv = document.getElementById('status');
+        const toggleBtn = document.getElementById('toggle-camera');
+
+        toggleBtn.addEventListener('click', async () => {
+            if (!this.cameraMode) {
+                // Enable camera mode
+                statusDiv.textContent = 'Initializing camera...';
+                const success = await this.faceTracker.start();
+
+                if (success) {
+                    this.cameraMode = true;
+                    this.particles.setCameraMode(true);
+                    toggleBtn.textContent = 'Switch to Keyboard Mode';
+                    statusDiv.textContent = 'Camera Active - Mirror your expressions!';
+                    statusDiv.className = 'status active';
+                } else {
+                    statusDiv.textContent = 'Camera access denied or unavailable';
+                    statusDiv.className = 'status error';
+                }
+            } else {
+                // Disable camera mode
+                this.faceTracker.stop();
+                this.cameraMode = false;
+                this.particles.setCameraMode(false);
+                toggleBtn.textContent = 'Enable Camera Tracking';
+                statusDiv.textContent = 'Keyboard Mode: Press S/E/T for expressions';
+                statusDiv.className = 'status';
+            }
+        });
     }
 
     setupResize() {
@@ -58,8 +106,8 @@ class App {
         if (this.particles) {
             this.particles.update(time);
 
-            // Random blink
-            if (Math.random() < 0.005) { // Approx once every few seconds
+            // Random blink (only in keyboard mode)
+            if (!this.cameraMode && Math.random() < 0.005) {
                 this.particles.triggerBlink();
             }
         }
