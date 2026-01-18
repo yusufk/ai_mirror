@@ -14,6 +14,7 @@ export class FaceTracker {
         this.onSmile = null;
         this.onEyebrowRaise = null;
         this.onRotation = null;
+        this.onMouthOpen = null;
 
         // Previous states for edge detection
         this.prevLeftEyeOpen = true;
@@ -123,6 +124,7 @@ export class FaceTracker {
         // console.log("FaceTracker results:", results); // Uncomment for verbose logging
         if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
             // console.log("No faces detected");
+            this.updateDebug(null, false);
             return;
         }
 
@@ -134,15 +136,25 @@ export class FaceTracker {
         this.detectSmile(landmarks);
         this.detectEyebrowRaise(landmarks);
         this.detectHeadRotation(landmarks);
+        this.detectMouthOpen(landmarks);
 
         // Update debug console
         this.frameCount++;
-        this.updateDebug(landmarks);
+        this.updateDebug(landmarks, true);
     }
 
-    updateDebug(landmarks) {
+    updateDebug(landmarks, faceDetected) {
         const consoleEl = document.getElementById('debug-console');
         if (consoleEl.style.display === 'none') return;
+
+        // Face Detected Status
+        const detectedEl = document.getElementById('debug-detected');
+        if (detectedEl) {
+            detectedEl.textContent = faceDetected ? 'YES' : 'NO';
+            detectedEl.style.color = faceDetected ? '#00ff88' : '#ff3333';
+        }
+
+        if (!faceDetected) return;
 
         // Status
         document.getElementById('debug-status').textContent = 'Tracking';
@@ -222,16 +234,25 @@ export class FaceTracker {
 
         // Smile ratio: wider mouth relative to height
         const smileRatio = mouthWidth / (mouthHeight + 0.001);
-        const SMILE_THRESHOLD = 3.0;
+
+        // Refined Logic: Check if corners are lifted relative to lip center
+        // In MediaPipe (y increases downwards), lower Y means higher up
+        const cornersY = (leftCorner.y + rightCorner.y) / 2;
+        const centerLipY = (upperLip.y + lowerLip.y) / 2;
+        const liftValue = centerLipY - cornersY; // Positive = corners higher
+
+        // Thresholds
+        let isSmileStructure = liftValue > 0.01;
+        const SMILE_THRESHOLD = 2.5;
 
         // Debug output
         const debugEl = document.getElementById('debug-mouth');
         if (debugEl) {
-            debugEl.textContent = `${smileRatio.toFixed(2)} / ${SMILE_THRESHOLD}`;
-            debugEl.style.color = smileRatio > SMILE_THRESHOLD ? '#00ff88' : 'white';
+            debugEl.textContent = `R:${smileRatio.toFixed(1)} L:${liftValue.toFixed(3)}`;
+            debugEl.style.color = (smileRatio > SMILE_THRESHOLD && isSmileStructure) ? '#00ff88' : 'white';
         }
 
-        const isSmiling = smileRatio > SMILE_THRESHOLD;
+        const isSmiling = (smileRatio > SMILE_THRESHOLD) && isSmileStructure;
 
         // Trigger on rising edge (just started smiling)
         if (isSmiling && !this.prevSmiling) {
@@ -296,14 +317,43 @@ export class FaceTracker {
         // Calculate vertical rotation (pitch) using forehead and chin
         const forehead = landmarks[10];
         const chin = landmarks[152];
-        const pitch = (chin.y - forehead.y - 0.3) * 3; // Centered and scaled
+        const pitch = (chin.y - forehead.y - 0.3) * 5; // Increased sensitivity (was 3)
 
         // Smooth the rotation
-        this.rotationX += (pitch - this.rotationX) * 0.1;
-        this.rotationY += (yaw - this.rotationY) * 0.1;
+        this.rotationX += (pitch - this.rotationX) * 0.15; // Faster smoothing
+        this.rotationY += (yaw - this.rotationY) * 0.15; // Faster smoothing
 
         if (this.onRotation) {
             this.onRotation(this.rotationX, this.rotationY);
+        }
+    }
+
+    detectMouthOpen(landmarks) {
+        // Upper lip bottom: 13
+        // Lower lip top: 14
+        // Mouth corners for scale: 61, 291
+
+        const upperLip = landmarks[13];
+        const lowerLip = landmarks[14];
+        const leftCorner = landmarks[61];
+        const rightCorner = landmarks[291];
+
+        const mouthHeight = this.distance(upperLip, lowerLip);
+        const mouthWidth = this.distance(leftCorner, rightCorner);
+
+        // Ratio independent of distance to camera
+        const openRatio = mouthHeight / (mouthWidth + 0.001);
+
+        // Thresholds (Tuned)
+        const MIN_OPEN = 0.1; // Resting state
+        const MAX_OPEN = 0.6; // Fully open
+
+        // Normalize 0 to 1
+        let talkValue = (openRatio - MIN_OPEN) / (MAX_OPEN - MIN_OPEN);
+        talkValue = Math.max(0, Math.min(1, talkValue));
+
+        if (this.onMouthOpen) {
+            this.onMouthOpen(talkValue);
         }
     }
 

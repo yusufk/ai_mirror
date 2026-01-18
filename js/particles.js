@@ -373,6 +373,30 @@ export class Particles {
         talkAnim();
     }
 
+    // Continuous update for camera mode
+    setTalkValue(val) {
+        // val is 0.0 to 1.0
+        // Smoothly interpolate to avoid jitter
+        let current = this.material.uniforms.uTalk.value;
+        this.material.uniforms.uTalk.value += (val - current) * 0.3;
+    }
+
+    onCameraMouthOpen(val) {
+        this.setTalkValue(val);
+    }
+
+    // Continuous update for camera mode
+    setTalkValue(val) {
+        // val is 0.0 to 1.0
+        // Smoothly interpolate to avoid jitter
+        let current = this.material.uniforms.uTalk.value;
+        this.material.uniforms.uTalk.value += (val - current) * 0.3;
+    }
+
+    onCameraMouthOpen(val) {
+        this.setTalkValue(val);
+    }
+
     onResize(width, height) {
         this.material.uniforms.uResolution.value.set(width, height);
     }

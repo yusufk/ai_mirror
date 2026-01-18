@@ -48,6 +48,7 @@ class App {
         this.faceTracker.onSmile = () => this.particles.onCameraSmile();
         this.faceTracker.onEyebrowRaise = () => this.particles.onCameraEyebrowRaise();
         this.faceTracker.onRotation = (pitch, yaw) => this.particles.onCameraRotation(pitch, yaw);
+        this.faceTracker.onMouthOpen = (val) => this.particles.onCameraMouthOpen(val);
     }
 
     setupUI() {
