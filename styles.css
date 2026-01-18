@@ -21,85 +21,116 @@ body {
     z-index: 1;
 }
 
-#controls {
+/* --- UI Layer (Top Right) --- */
+#ui-layer {
     position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 10;
+    top: 20px;
+    right: 20px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    pointer-events: none;
+    /* Let clicks pass through empty space */
+}
+
+#ui-layer * {
+    pointer-events: auto;
+    /* Re-enable clicks for buttons/panels */
+}
+
+#ui-toggle {
+    background: rgba(0, 10, 30, 0.6);
+    color: #00c6ff;
+    border: 1px solid rgba(0, 198, 255, 0.4);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    cursor: pointer;
+    backdrop-filter: blur(5px);
+    transition: all 0.3s ease;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#ui-toggle:hover {
+    background: rgba(0, 198, 255, 0.2);
+    transform: scale(1.1);
+}
+
+#ui-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-end;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+#ui-panel.hidden {
+    opacity: 0;
+    transform: translateY(-20px);
+    pointer-events: none;
+}
+
+/* --- Controls Panel --- */
+#controls {
     text-align: center;
     background: rgba(0, 10, 30, 0.6);
-    padding: 20px;
-    border-radius: 15px;
+    padding: 15px;
+    border-radius: 12px;
     border: 1px solid rgba(100, 200, 255, 0.2);
     backdrop-filter: blur(10px);
-    width: 90%;
-    max-width: 500px;
+    width: 280px;
+    /* Compact width */
 }
 
 #toggle-camera {
     background: linear-gradient(135deg, #00c6ff, #0072ff);
     color: white;
     border: none;
-    padding: 12px 24px;
-    font-size: 16px;
+    padding: 10px 20px;
+    font-size: 14px;
     font-weight: bold;
-    border-radius: 30px;
+    border-radius: 20px;
     cursor: pointer;
     transition: all 0.3s ease;
     box-shadow: 0 0 15px rgba(0, 198, 255, 0.4);
-    margin-bottom: 15px;
+    margin-bottom: 10px;
+    width: 100%;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
 
 #toggle-camera:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 25px rgba(0, 198, 255, 0.6);
+    transform: scale(1.02);
+    box-shadow: 0 0 20px rgba(0, 198, 255, 0.6);
 }
 
-.status {
-    margin: 10px 0;
-    font-size: 14px;
-    color: #aaddff;
-}
-
-.status.active {
-    color: #00ff88;
-    font-weight: bold;
-    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
-}
-
-.status.error {
-    color: #ff4444;
+#status {
+    font-size: 13px;
+    margin-bottom: 8px;
 }
 
 #help {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
-    line-height: 1.6;
-    margin-top: 10px;
+    font-size: 11px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding-top: 10px;
+    padding-top: 8px;
+    color: rgba(255, 255, 255, 0.7);
 }
 
-strong {
-    color: white;
-}
-
+/* --- Debug Console --- */
 #debug-console {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.85);
     border: 1px solid #00ff88;
     color: #00ff88;
-    padding: 15px;
+    padding: 12px;
     border-radius: 8px;
     font-family: 'Courier New', monospace;
-    font-size: 12px;
-    z-index: 100;
-    min-width: 200px;
+    font-size: 11px;
+    width: 280px;
     box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
 }
 

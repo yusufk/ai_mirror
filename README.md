@@ -1,6 +1,8 @@
 # Viki - Holographic Face Mirror
 
-A web-based holographic face visualization inspired by **Viki** from *I, Robot*, featuring real-time camera-based expression mirroring and interactive controls.
+**Live Demo:** [https://yusuf.kaka.co.za/ai_mirror/](https://yusuf.kaka.co.za/ai_mirror/)
+
+A real-time, interactive 3D holographic face that mirrors your expressions using your webcam. Inspired by the AI "Viki" from *I, Robot*, this project uses Three.js for particle rendering and MediaPipe Face Mesh for facial tracking. and interactive controls.
 
 ![Viki Holographic Face](Screenshot%202026-01-17%20at%2023.13.58.png)
 
