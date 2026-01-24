@@ -26,6 +26,10 @@ export class Particles {
         this.cameraMode = false;
         this.trackedRotation = new THREE.Vector2(0, 0);
 
+        // Gestures
+        this.gestures = {};
+        this.activeMorph = null;
+
         this.init();
         this.addEvents();
     }
@@ -33,29 +37,16 @@ export class Particles {
     init() {
         const geometry = new THREE.BufferGeometry();
 
-        // Standard MediaPipe Face Mesh has 468 landmarks + 10 iris = 478
-        // We originally used 2500. Let's stick to 478 for 1:1, or we could duplicate.
-        // For accurate "Surface Map", 1:1 is best. Viki is "chunky" anyway.
-        this.count = 478;
+        // Restore Viki Grid for initial state
+        this.count = 2500;
+        const { positions, types } = FaceGeometry.generate(this.count);
 
-        // Initial positions (placeholder or Viki grid subset)
-        // We'll just initialize empty/random and let the camera snap them.
-        const positions = new Float32Array(this.count * 3);
-        const types = new Float32Array(this.count);
         const randoms = new Float32Array(this.count);
-
-        for (let i = 0; i < this.count; i++) {
-            positions[i * 3] = (Math.random() - 0.5) * 500;
-            positions[i * 3 + 1] = (Math.random() - 0.5) * 500;
-            positions[i * 3 + 2] = (Math.random() - 0.5) * 500;
-            types[i] = 0; // Default skin
-            randoms[i] = Math.random();
-        }
+        for (let i = 0; i < this.count; i++) randoms[i] = Math.random();
 
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('aType', new THREE.BufferAttribute(types, 1));
         geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1));
-        // Mark as dynamic for frequent updates
         geometry.attributes.position.setUsage(THREE.DynamicDrawUsage);
 
         this.material = new THREE.ShaderMaterial({
@@ -78,85 +69,83 @@ export class Particles {
         this.scene.add(this.points);
     }
 
-    updateFaceMesh(landmarks) {
-        // landmarks is array of {x, y, z} from 0 to 1 (normalized) typically, or world coords?
-        // MediaPipe usually gives: 
-        // x: 0 to 1 (left to right)
-        // y: 0 to 1 (top to bottom)
-        // z: relative depth (scaled similar to x)
+    loadGestures(gestureMap) {
+        this.gestures = gestureMap;
+        console.log("Particles loaded gestures:", Object.keys(this.gestures));
+    }
 
+    updateFaceMesh(landmarks) {
         const posAttribute = this.points.geometry.attributes.position;
         const positions = posAttribute.array;
-
-        // Scale factors to match Three.js world space
-        // Viki face is usually ~900 units wide? (20cm * 45 scale)
         const scale = 1000.0;
-        const xOffset = -500.0;
-        const yOffset = 500.0; // Flip Y? JS coords y=0 is top. ThreeJS y=0 is center.
 
-        for (let i = 0; i < landmarks.length && i < this.count; i++) {
-            const p = landmarks[i];
+        for (let i = 0; i < this.count; i++) {
+            if (i < landmarks.length) {
+                const p = landmarks[i];
+                const x = -(p.x - 0.5) * scale;
+                const y = -(p.y - 0.5) * scale;
+                const z = -p.z * scale;
 
-            // Map MediaPipe (0..1) to ThreeJS World
-            // MP x: 0(left) -> 1(right). ThreeJS: -x(left) -> +x(right)
-            // We need to mirror X for a "Mirror" effect?
-            // If user tilts head right, image tilts right.
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+            } else {
+                positions[i * 3] = 0;
+                positions[i * 3 + 1] = 0;
+                positions[i * 3 + 2] = 0;
+            }
+        }
+        posAttribute.needsUpdate = true;
+    }
 
-            // Center and scale
-            const x = -(p.x - 0.5) * scale; // Flip X for mirror feel?
-            const y = -(p.y - 0.5) * scale; // Flip Y (MP y=0 is top, ThreeJS y is up)
-            // Z in MP is depth relative to face center. 
-            const z = -p.z * scale;
+    morphToGesture(landmarks, duration = 400) {
+        const startPositions = new Float32Array(this.points.geometry.attributes.position.array);
+        const targetPositions = new Float32Array(this.count * 3);
+        const scale = 1000.0;
 
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
+        for (let i = 0; i < this.count; i++) {
+            if (i < landmarks.length) {
+                const p = landmarks[i];
+                targetPositions[i * 3] = -(p.x - 0.5) * scale;
+                targetPositions[i * 3 + 1] = -(p.y - 0.5) * scale;
+                targetPositions[i * 3 + 2] = -p.z * scale;
+            } else {
+                targetPositions[i * 3] = 0;
+                targetPositions[i * 3 + 1] = 0;
+                targetPositions[i * 3 + 2] = 0;
+            }
         }
 
-        posAttribute.needsUpdate = true;
+        this.activeMorph = {
+            start: startPositions,
+            end: targetPositions,
+            startTime: performance.now(),
+            duration: duration
+        };
     }
 
     vertexShader() {
         return `
             uniform float uTime;
-            
             attribute float aType; 
             attribute float aRandom;
-            
             varying float vType;
             varying float vAlpha;
-            varying float vElevation; // For gradient colors
+            varying float vElevation;
             
             void main() {
-                // Position is now driven DIRECTLY by JS keypoints
                 vec3 pos = position;
-                
                 vElevation = pos.y; 
-                
-                // Identify eyes based on index? Or just simplistic height check for color
-                // Viki eyes are bright.
-                // In MP, eyes are specific indices. But passed 'aType' is static 0.
-                // We can use a uniform array of indices? Too expensive.
-                // We'll stick to a simple spatial check for eye color.
                 vType = 0.0;
-                // Rough eye regions in world space
                 if (pos.y > 50.0 && abs(pos.x) > 100.0 && abs(pos.x) < 300.0) {
                      vType = 1.0; 
                 }
 
-                // --- ANIMATION ---
-                // Gentle floating
-                // pos.z += sin(uTime * 0.5 + pos.y * 0.05) * 2.0;
-                
                 vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
                 gl_Position = projectionMatrix * mvPosition;
                 
-                // Size attenuation - Massive chunky pixels
-                float sizeBase = 4000.0; // Slightly smaller since they are points
-                
+                float sizeBase = 4000.0; 
                 gl_PointSize = (sizeBase / -mvPosition.z); 
-                
-                // Subtle twinkle - mostly bright
                 vAlpha = 0.85 + 0.15 * sin(uTime * 1.5 + aRandom * 100.0);
             }
         `;
@@ -176,29 +165,37 @@ export class Particles {
                 float alpha = 1.0 - smoothstep(0.4, 0.5, dist);
                 alpha *= vAlpha;
                 
-                // --- COLOR GRADING ---
-                // Viki-style: Bright white/cyan holographic look
+                vec3 colBase = vec3(0.7, 0.85, 1.0);
+                vec3 colHighlight = vec3(0.95, 0.98, 1.0);
                 
-                vec3 colBase = vec3(0.7, 0.85, 1.0); // Bright cyan-white
-                vec3 colHighlight = vec3(0.95, 0.98, 1.0); // Nearly pure white
-                
-                // Mix based on "Elevation" (Y) to highlight brow/eyes/lips area
-                // Y range derived from approx -20 to +20 (raw) -> Scaled in Vertex
-                // Here vElevation is already scaled.
-                
-                // Highlight middle band
                 float highlightBand = smoothstep(-675.0, 0.0, vElevation) * (1.0 - smoothstep(450.0, 900.0, vElevation));
-                
                 vec3 skinColor = mix(colBase, colHighlight, highlightBand * 0.8);
-                
-                // Eyes: Pure Bright White
                 vec3 colEye = vec3(1.0, 1.0, 1.0); 
                 
                 vec3 finalColor = (vType > 0.5) ? colEye : skinColor;
-                
                 gl_FragColor = vec4(finalColor, alpha);
             }
         `;
+    }
+
+    playGestureAnimation(deltas, durationMs = 3000) {
+        // Deltas is array of array of {x,y,z}
+        // Playback: We need to animate through these frames.
+        // If recording was ~30fps for 3s, we have ~90 frames.
+
+        this.activeAnimation = {
+            frames: deltas,
+            startTime: performance.now(),
+            duration: durationMs, // Playback at originally recorded speed? Or fixed 3s? 
+            // If we want exact replay speed, we should rely on frame count * 16ms or similiar?
+            // Let's assume 3000ms for now.
+        };
+
+        // Capture a "Base Pose" for this animation?
+        // In Keyboard mode, face is static. We apply delta to CURRENT static pose.
+        // We need to store the "Base" state when animation starts.
+        const currentPos = this.points.geometry.attributes.position.array;
+        this.animationBase = new Float32Array(currentPos);
     }
 
     addEvents() {
@@ -210,143 +207,62 @@ export class Particles {
             this.targetRotation.y = this.mouse.x * 0.3;
         });
 
-        // Keyboard controls for expressions
         window.addEventListener('keydown', (e) => {
-            // Only process keyboard if not in camera mode
             if (this.cameraMode) return;
+            const key = e.key.toLowerCase();
 
-            switch (e.key.toLowerCase()) {
-                case 's':
-                    this.triggerSmile();
-                    break;
-                case 'e':
-                    this.triggerEyebrowRaise();
-                    break;
-                case 't':
-                    this.triggerTalk();
-                    break;
+            if (this.gestures && this.gestures[key]) {
+                const g = this.gestures[key];
+                // Check if it is a delta animation (array of frames) or old snapshot
+                if (Array.isArray(g.landmarks) && g.landmarks.length > 0 && Array.isArray(g.landmarks[0])) {
+                    // It's the new Delta format (landmarks property was actually used to store deltas in main.js saveGesture call?)
+                    // wait, main.js calls: this.gestureManager.saveGesture(name, key, deltas);
+                    // The 3rd arg is usually 'landmarks', so g.landmarks holds the deltas.
+                    console.log("Replaying animation:", g.name);
+                    this.playGestureAnimation(g.landmarks);
+                } else if (Array.isArray(g.landmarks) && g.landmarks.length > 0 && typeof g.landmarks[0] === 'object' && 'x' in g.landmarks[0]) {
+                    // It's an old snapshot (single frame of landmarks)
+                    console.log("Replaying static gesture:", g.name);
+                    this.morphToGesture(g.landmarks);
+                } else {
+                    // Fallback??
+                    console.log("Unknown gesture format for key:", key, g);
+                }
+                return;
+            }
+
+            // Legacy fallbacks
+            switch (key) {
+                case 's': this.triggerSmile(); break;
+                case 'e': this.triggerEyebrowRaise(); break;
+                case 't': this.triggerTalk(); break;
             }
         });
     }
 
-    // Camera mode methods
     setCameraMode(enabled) {
         this.cameraMode = enabled;
     }
 
-    onCameraBlink() {
-        this.triggerBlink();
-    }
-
-    onCameraSmile() {
-        this.triggerSmile();
-    }
-
-    onCameraEyebrowRaise() {
-        this.triggerEyebrowRaise();
-    }
-
     onCameraRotation(pitchDeg, yawDeg) {
-        // Convert degrees to radians and update tracked rotation
         this.trackedRotation.x = pitchDeg * (Math.PI / 180);
         this.trackedRotation.y = yawDeg * (Math.PI / 180);
     }
 
-    triggerBlink() {
-        if (this.isBlinking) return;
-        this.isBlinking = true;
-        let startTime = performance.now();
-        let duration = 250;
-
-        const blinkAnim = () => {
-            let now = performance.now();
-            let progress = (now - startTime) / duration;
-
-            if (progress >= 1) {
-                this.material.uniforms.uBlink.value = 0;
-                this.isBlinking = false;
-                return;
-            }
-            this.material.uniforms.uBlink.value = Math.sin(Math.PI * progress);
-            requestAnimationFrame(blinkAnim);
-        };
-        blinkAnim();
-    }
-
-    triggerSmile() {
-        if (this.isSmiling) return;
-        this.isSmiling = true;
-        let startTime = performance.now();
-        let duration = 500; // Slower for smile
-
-        const smileAnim = () => {
-            let now = performance.now();
-            let progress = (now - startTime) / duration;
-
-            if (progress >= 1) {
-                this.material.uniforms.uSmile.value = 0;
-                this.isSmiling = false;
-                return;
-            }
-            this.material.uniforms.uSmile.value = Math.sin(Math.PI * progress);
-            requestAnimationFrame(smileAnim);
-        };
-        smileAnim();
-    }
-
-    triggerEyebrowRaise() {
-        if (this.isRaisingEyebrow) return;
-        this.isRaisingEyebrow = true;
-        let startTime = performance.now();
-        let duration = 400;
-
-        const eyebrowAnim = () => {
-            let now = performance.now();
-            let progress = (now - startTime) / duration;
-
-            if (progress >= 1) {
-                this.material.uniforms.uEyebrow.value = 0;
-                this.isRaisingEyebrow = false;
-                return;
-            }
-            this.material.uniforms.uEyebrow.value = Math.sin(Math.PI * progress);
-            requestAnimationFrame(eyebrowAnim);
-        };
-        eyebrowAnim();
-    }
-
-    triggerTalk() {
-        if (this.isTalking) return;
-        this.isTalking = true;
-        let startTime = performance.now();
-        let duration = 600; // Longer for talking
-
-        const talkAnim = () => {
-            let now = performance.now();
-            let progress = (now - startTime) / duration;
-
-            if (progress >= 1) {
-                this.material.uniforms.uTalk.value = 0;
-                this.isTalking = false;
-                return;
-            }
-            // Multiple bounces for talking effect
-            this.material.uniforms.uTalk.value = Math.abs(Math.sin(Math.PI * progress * 3)) * (1 - progress);
-            requestAnimationFrame(talkAnim);
-        };
-        talkAnim();
-    }
-
-    // Continuous update for camera mode
+    // Legacy / Unused but kept for interface safety
+    triggerSmile() { }
+    triggerEyebrowRaise() { }
+    triggerTalk() { }
+    triggerBlink() { }
+    onCameraBlink() { }
+    onCameraSmile() { }
+    onCameraEyebrowRaise() { }
+    onCameraMouthOpen(val) { this.setTalkValue(val); }
     setTalkValue(val) {
-        // val is 0.0 to 1.0
-        // Smoothly interpolate to avoid jitter
-        let current = this.material.uniforms.uTalk.value;
-        this.material.uniforms.uTalk.value += (val - current) * 0.3;
-    }
-
-    onCameraMouthOpen(val) {
-        this.setTalkValue(val);
+        // Legacy: if uTalk existed. For now doing nothing or we can re-add uTalk.
+        // Since we did direct mapping, uTalk is irrelevant for camera mode!
+        // But for keyboard mode, we might want it.
+        // We removed uTalk from shader, so removing logic here.
     }
 
     onResize(width, height) {
@@ -356,7 +272,56 @@ export class Particles {
     update(time) {
         this.material.uniforms.uTime.value = time;
 
-        // Use camera rotation if in camera mode, otherwise use mouse
+        if (this.activeAnimation && this.animationBase) {
+            const now = performance.now();
+            const elapsed = now - this.activeAnimation.startTime;
+            const progress = elapsed / this.activeAnimation.duration; // 0 to 1
+
+            if (progress < 1.0) {
+                const frames = this.activeAnimation.frames;
+                // Calculate current frame index (float)
+                const frameIndex = progress * (frames.length - 1);
+                const iLow = Math.floor(frameIndex);
+                const iHigh = Math.min(iLow + 1, frames.length - 1);
+                const mix = frameIndex - iLow;
+
+                const frameLow = frames[iLow];
+                const frameHigh = frames[iHigh];
+
+                const positions = this.points.geometry.attributes.position.array;
+                const scale = 1000.0;
+
+                // Apply interpolated delta to base
+                for (let i = 0; i < this.count && i < frameLow.length; i++) {
+                    // Interpolate delta
+                    const dX = frameLow[i].x * (1 - mix) + frameHigh[i].x * mix;
+                    const dY = frameLow[i].y * (1 - mix) + frameHigh[i].y * mix;
+                    const dZ = frameLow[i].z * (1 - mix) + frameHigh[i].z * mix;
+
+                    // Note: Deltas are in 0..1 MediaPipe Space? No, we need to scale them.
+                    // In updateFaceMesh we did: -(p.x - 0.5) * scale.
+                    // Our saved deltas (main.js) were: frame[j].x - baseFrame[j].x. (Raw 0..1 difference)
+                    // So we must scale them similarly:
+                    // newX = baseX + -(dX) * scale. (Flip X/Y apply to deltas too)
+
+                    const worldDeltaX = -dX * scale;
+                    const worldDeltaY = -dY * scale;
+                    const worldDeltaZ = -dZ * scale;
+
+                    positions[i * 3] = this.animationBase[i * 3] + worldDeltaX;
+                    positions[i * 3 + 1] = this.animationBase[i * 3 + 1] + worldDeltaY;
+                    positions[i * 3 + 2] = this.animationBase[i * 3 + 2] + worldDeltaZ;
+                }
+                this.points.geometry.attributes.position.needsUpdate = true;
+
+            } else {
+                this.activeAnimation = null;
+                // Optional: Snap to final frame or revert? 
+                // Usually gesture ends at neutral? Or hold?
+                // For now, it stays at last frame state.
+            }
+        }
+
         if (this.cameraMode) {
             this.points.rotation.x += (this.trackedRotation.x - this.points.rotation.x) * 0.15;
             this.points.rotation.y += (this.trackedRotation.y - this.points.rotation.y) * 0.15;
