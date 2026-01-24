@@ -138,6 +138,11 @@ export class FaceTracker {
         this.detectHeadRotation(landmarks);
         this.detectMouthOpen(landmarks);
 
+        // Direct Mesh Update
+        if (this.onFaceMeshUpdate) {
+            this.onFaceMeshUpdate(landmarks);
+        }
+
         // Update debug console
         this.frameCount++;
         this.updateDebug(landmarks, true);

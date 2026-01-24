@@ -33,15 +33,30 @@ export class Particles {
     init() {
         const geometry = new THREE.BufferGeometry();
 
-        // Generate Face Data (Mesh Sampling)
-        const { positions, types } = FaceGeometry.generate(this.count);
+        // Standard MediaPipe Face Mesh has 468 landmarks + 10 iris = 478
+        // We originally used 2500. Let's stick to 478 for 1:1, or we could duplicate.
+        // For accurate "Surface Map", 1:1 is best. Viki is "chunky" anyway.
+        this.count = 478;
 
+        // Initial positions (placeholder or Viki grid subset)
+        // We'll just initialize empty/random and let the camera snap them.
+        const positions = new Float32Array(this.count * 3);
+        const types = new Float32Array(this.count);
         const randoms = new Float32Array(this.count);
-        for (let i = 0; i < this.count; i++) randoms[i] = Math.random();
+
+        for (let i = 0; i < this.count; i++) {
+            positions[i * 3] = (Math.random() - 0.5) * 500;
+            positions[i * 3 + 1] = (Math.random() - 0.5) * 500;
+            positions[i * 3 + 2] = (Math.random() - 0.5) * 500;
+            types[i] = 0; // Default skin
+            randoms[i] = Math.random();
+        }
 
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('aType', new THREE.BufferAttribute(types, 1));
         geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1));
+        // Mark as dynamic for frequent updates
+        geometry.attributes.position.setUsage(THREE.DynamicDrawUsage);
 
         this.material = new THREE.ShaderMaterial({
             vertexShader: this.vertexShader(),
@@ -63,13 +78,47 @@ export class Particles {
         this.scene.add(this.points);
     }
 
+    updateFaceMesh(landmarks) {
+        // landmarks is array of {x, y, z} from 0 to 1 (normalized) typically, or world coords?
+        // MediaPipe usually gives: 
+        // x: 0 to 1 (left to right)
+        // y: 0 to 1 (top to bottom)
+        // z: relative depth (scaled similar to x)
+
+        const posAttribute = this.points.geometry.attributes.position;
+        const positions = posAttribute.array;
+
+        // Scale factors to match Three.js world space
+        // Viki face is usually ~900 units wide? (20cm * 45 scale)
+        const scale = 1000.0;
+        const xOffset = -500.0;
+        const yOffset = 500.0; // Flip Y? JS coords y=0 is top. ThreeJS y=0 is center.
+
+        for (let i = 0; i < landmarks.length && i < this.count; i++) {
+            const p = landmarks[i];
+
+            // Map MediaPipe (0..1) to ThreeJS World
+            // MP x: 0(left) -> 1(right). ThreeJS: -x(left) -> +x(right)
+            // We need to mirror X for a "Mirror" effect?
+            // If user tilts head right, image tilts right.
+
+            // Center and scale
+            const x = -(p.x - 0.5) * scale; // Flip X for mirror feel?
+            const y = -(p.y - 0.5) * scale; // Flip Y (MP y=0 is top, ThreeJS y is up)
+            // Z in MP is depth relative to face center. 
+            const z = -p.z * scale;
+
+            positions[i * 3] = x;
+            positions[i * 3 + 1] = y;
+            positions[i * 3 + 2] = z;
+        }
+
+        posAttribute.needsUpdate = true;
+    }
+
     vertexShader() {
         return `
             uniform float uTime;
-            uniform float uBlink;
-            uniform float uSmile;
-            uniform float uEyebrow;
-            uniform float uTalk;
             
             attribute float aType; 
             attribute float aRandom;
@@ -79,116 +128,31 @@ export class Particles {
             varying float vElevation; // For gradient colors
             
             void main() {
-                // Scale Canonical Face (cm -> visible units)
-                vec3 pos = position * 45.0; 
+                // Position is now driven DIRECTLY by JS keypoints
+                vec3 pos = position;
                 
-                vElevation = pos.y; // Pass Y for gradients
+                vElevation = pos.y; 
                 
-                // --- NO GEOMETRY WARPING (Reverted) ---
-                // We trust the standard mesh topology.
-                
-                // --- EYE IDENTIFICATION ---
+                // Identify eyes based on index? Or just simplistic height check for color
+                // Viki eyes are bright.
+                // In MP, eyes are specific indices. But passed 'aType' is static 0.
+                // We can use a uniform array of indices? Too expensive.
+                // We'll stick to a simple spatial check for eye color.
                 vType = 0.0;
-                // Scaled coordinates: multiply MediaPipe by 45
-                // Original eye range was y: 2-12, x: -18 to -6 and 6-18
-                if (pos.y > 90.0 && pos.y < 540.0) {  // ~2*45 to ~12*45
-                     if (pos.x > -810.0 && pos.x < -270.0) vType = 1.0; // Left eye
-                     if (pos.x > 270.0 && pos.x < 810.0) vType = 2.0; // Right eye
+                // Rough eye regions in world space
+                if (pos.y > 50.0 && abs(pos.x) > 100.0 && abs(pos.x) < 300.0) {
+                     vType = 1.0; 
                 }
 
-                // --- ANIMATION LOGIC ---
-                // We use distance fields for organic deformation
-                
-                // --- BLINKING ---
-                // Smooth falloff around eye center
-                float eyeCenterY = 315.0; // ~7.0 * 45
-                float eyeL_X = -540.0; // -12 * 45
-                float eyeR_X = 540.0;  // 12 * 45
-                
-                float distEyeL = distance(pos.xy, vec2(eyeL_X, eyeCenterY));
-                float distEyeR = distance(pos.xy, vec2(eyeR_X, eyeCenterY));
-                
-                // Radius of influence for eyes
-                float eyeRadius = 300.0; 
-                
-                if (uBlink > 0.0) {
-                    // Left Eye - Smoother weighted pull to center
-                    float influenceL = smoothstep(eyeRadius, 0.0, distEyeL);
-                    if (influenceL > 0.0) {
-                        // Upper lid moves down more than lower lid moves up (approx 70/30 split)
-                        float targetY = eyeCenterY;
-                        float offset = (pos.y - targetY);
-                        if (offset > 0.0) {
-                            pos.y -= offset * uBlink * influenceL * 1.0; // Upper lid closes fully
-                        } else {
-                            pos.y -= offset * uBlink * influenceL * 0.3; // Lower lid moves up slightly
-                        }
-                    }
-                    
-                    // Right Eye
-                    float influenceR = smoothstep(eyeRadius, 0.0, distEyeR);
-                    if (influenceR > 0.0) {
-                         float targetY = eyeCenterY;
-                        float offset = (pos.y - targetY);
-                        if (offset > 0.0) {
-                            pos.y -= offset * uBlink * influenceR * 1.0;
-                        } else {
-                            pos.y -= offset * uBlink * influenceR * 0.3;
-                        }
-                    }
-                }
-                
-                // --- SMILE ---
-                // Organic mouth deformation - Simpler, cleaner curve
-                vec2 mouthCenter = vec2(0.0, -450.0); // -10.0 * 45
-                float distMouth = distance(pos.xy, mouthCenter);
-                float mouthRadius = 600.0;
-                
-                if (uSmile > 0.0 && distMouth < mouthRadius) {
-                    float influence = smoothstep(mouthRadius, 0.0, distMouth);
-                    
-                    // Normalize X (-1 to 1) within mouth region
-                    float xFactor = clamp(pos.x / 600.0, -1.0, 1.0);
-                    
-                    // Quadratic curve for smile: y = x^2
-                    float lift = xFactor * xFactor; 
-                    
-                    // Apply lift to corners (simple additive offset)
-                    pos.y += uSmile * 250.0 * lift * influence;
-                    
-                    // Widen mouth slightly
-                    pos.x += sign(pos.x) * uSmile * 80.0 * influence;
-                }
-                
-                // --- EYEBROW RAISE ---
-                // Forehead influence
-                float browY = 500.0;
-                if (uEyebrow > 0.0 && pos.y > 300.0) {
-                    float distBrow = abs(pos.y - browY);
-                    float influence = smoothstep(800.0, 0.0, distBrow);
-                    
-                    // Simple uniform lift with side arch
-                    float arch = 1.0 + (abs(pos.x) / 900.0) * 0.5; // Sides lift more
-                    pos.y += uEyebrow * 180.0 * influence * arch;
-                }
-                
-                // --- TALK ---
-                // Jaw movement (simple vertical drop with falloff)
-                if (uTalk > 0.0 && pos.y < -200.0) {
-                    float jawInfluence = smoothstep(-200.0, -900.0, pos.y);
-                    pos.y -= uTalk * 250.0 * jawInfluence;
-                }
-                
                 // --- ANIMATION ---
                 // Gentle floating
-                pos.z += sin(uTime * 0.5 + pos.y * 0.05) * 2.0;
+                // pos.z += sin(uTime * 0.5 + pos.y * 0.05) * 2.0;
                 
                 vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
                 gl_Position = projectionMatrix * mvPosition;
                 
-                // Size attenuation - Massive chunky pixels (10x larger)
-                float sizeBase = 6000.0; 
-                if (vType > 0.5) sizeBase = 8000.0; // Huge eyes
+                // Size attenuation - Massive chunky pixels
+                float sizeBase = 4000.0; // Slightly smaller since they are points
                 
                 gl_PointSize = (sizeBase / -mvPosition.z); 
                 
@@ -371,18 +335,6 @@ export class Particles {
             requestAnimationFrame(talkAnim);
         };
         talkAnim();
-    }
-
-    // Continuous update for camera mode
-    setTalkValue(val) {
-        // val is 0.0 to 1.0
-        // Smoothly interpolate to avoid jitter
-        let current = this.material.uniforms.uTalk.value;
-        this.material.uniforms.uTalk.value += (val - current) * 0.3;
-    }
-
-    onCameraMouthOpen(val) {
-        this.setTalkValue(val);
     }
 
     // Continuous update for camera mode
