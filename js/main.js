@@ -49,6 +49,13 @@ class App {
         this.faceTracker.onEyebrowRaise = () => this.particles.onCameraEyebrowRaise();
         this.faceTracker.onRotation = (pitch, yaw) => this.particles.onCameraRotation(pitch, yaw);
         this.faceTracker.onMouthOpen = (val) => this.particles.onCameraMouthOpen(val);
+
+        // Direct Mesh Mapping
+        this.faceTracker.onFaceMeshUpdate = (landmarks) => {
+            if (this.cameraMode) {
+                this.particles.updateFaceMesh(landmarks);
+            }
+        };
     }
 
     setupUI() {
