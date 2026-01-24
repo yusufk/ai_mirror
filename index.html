@@ -36,6 +36,10 @@
             <div id="controls">
                 <button id="toggle-camera">Enable Camera Tracking</button>
                 <div id="status" class="status">Keyboard Mode: Press S/E/T</div>
+
+                <!-- Recording Controls (Visible in Camera Mode) -->
+                <button id="btn-record" style="display:none;" class="secondary-btn">🔴 Record Gesture</button>
+
                 <div id="help">
                     <strong>S</strong>: Smile | <strong>E</strong>: Brow | <strong>T</strong>: Talk<br>
                     Or use Camera Mode to mirror.
@@ -67,6 +71,32 @@
                 <div class="debug-item">
                     <span>FPS:</span> <span id="debug-fps" class="value">0</span>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recording Overlay -->
+    <div id="recording-overlay" class="hidden">
+        <div id="countdown">3</div>
+        <div id="recording-status" class="hidden">Recording...</div>
+    </div>
+
+    <!-- Gesture Save Modal -->
+    <div id="gesture-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Save Gesture</h3>
+            <p>Maps current face shape to a key.</p>
+            <div class="input-group">
+                <label>Name:</label>
+                <input type="text" id="gesture-name" placeholder="e.g. Smile">
+            </div>
+            <div class="input-group">
+                <label>Key:</label>
+                <input type="text" id="gesture-key" maxlength="1" placeholder="S">
+            </div>
+            <div class="modal-actions">
+                <button id="btn-cancel-gesture">Cancel</button>
+                <button id="btn-save-gesture">Save</button>
             </div>
         </div>
     </div>

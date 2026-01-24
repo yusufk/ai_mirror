@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Particles } from './particles.js';
 import { FaceTracker } from './face-tracker.js';
+import { GestureManager } from './gesture-manager.js';
 
 class App {
     constructor() {
@@ -12,6 +13,7 @@ class App {
 
         this.init();
         this.setupUI();
+        this.setupCaptureUI(); // Required for recording logic
         this.animate();
         this.setupResize();
     }
@@ -38,9 +40,15 @@ class App {
         // Particles
         this.particles = new Particles(this.scene, this.camera);
 
+        // Gesture Manager
+        this.gestureManager = new GestureManager();
+
         // Face Tracker
         this.faceTracker = new FaceTracker();
         this.connectFaceTracker();
+
+        // Load initial gestures into particles
+        this.particles.loadGestures(this.gestureManager.getAllGestures());
     }
 
     connectFaceTracker() {
@@ -52,10 +60,138 @@ class App {
 
         // Direct Mesh Mapping
         this.faceTracker.onFaceMeshUpdate = (landmarks) => {
+            // If recording, push deep copy of landmarks
+            if (this.isRecording) {
+                // Deep copy landmarks array
+                const frame = landmarks.map(p => ({ x: p.x, y: p.y, z: p.z }));
+                this.recordedFrames.push(frame);
+            }
+
             if (this.cameraMode) {
                 this.particles.updateFaceMesh(landmarks);
             }
         };
+    }
+
+    setupCaptureUI() {
+        const modal = document.getElementById('gesture-modal');
+        // Capture Button
+        const captureBtn = document.getElementById('btn-record');
+        const btnSave = document.getElementById('btn-save-gesture');
+        const btnCancel = document.getElementById('btn-cancel-gesture');
+
+        const overlay = document.getElementById('recording-overlay');
+        const countdownEl = document.getElementById('countdown');
+        const statusEl = document.getElementById('recording-status');
+
+        const inputName = document.getElementById('gesture-name');
+        const inputKey = document.getElementById('gesture-key');
+
+        if (!captureBtn) return;
+
+        captureBtn.addEventListener('click', () => {
+            this.startRecordingSequence();
+        });
+
+        btnCancel.addEventListener('click', () => {
+            modal.classList.add('hidden');
+        });
+
+        btnSave.addEventListener('click', () => {
+            const name = inputName.value.trim();
+            const key = inputKey.value.trim().toUpperCase();
+
+            if (!name || !key) {
+                alert("Please enter both a name and a key.");
+                return;
+            }
+
+            // Process Frames into Deltas
+            // We assume the first frame is "Neutral".
+            // Delta = Frame[i] - Frame[0]
+            if (!this.recordedFrames || this.recordedFrames.length === 0) {
+                alert("No frames to save!");
+                return;
+            }
+
+            const baseFrame = this.recordedFrames[0];
+            const deltas = [];
+
+            for (let i = 0; i < this.recordedFrames.length; i++) {
+                const frame = this.recordedFrames[i];
+                const frameDelta = [];
+                for (let j = 0; j < frame.length; j++) {
+                    // Raw delta: just position difference
+                    frameDelta.push({
+                        x: frame[j].x - baseFrame[j].x,
+                        y: frame[j].y - baseFrame[j].y,
+                        z: frame[j].z - baseFrame[j].z
+                    });
+                }
+                deltas.push(frameDelta);
+            }
+
+            // Save gesture with Deltas
+            this.gestureManager.saveGesture(name, key, deltas);
+
+            modal.classList.add('hidden');
+            alert(`Gesture '${name}' saved to key '${key}'`);
+
+            this.particles.loadGestures(this.gestureManager.getAllGestures());
+        });
+    }
+
+    startRecordingSequence() {
+        const overlay = document.getElementById('recording-overlay');
+        const countdownEl = document.getElementById('countdown');
+        const statusEl = document.getElementById('recording-status');
+
+        overlay.classList.remove('hidden');
+        statusEl.classList.add('hidden');
+        countdownEl.classList.remove('hidden');
+
+        let count = 3;
+        countdownEl.innerText = count;
+
+        const timer = setInterval(() => {
+            count--;
+            if (count > 0) {
+                countdownEl.innerText = count;
+            } else {
+                clearInterval(timer);
+                // Start Recording
+                countdownEl.classList.add('hidden');
+                statusEl.classList.remove('hidden');
+                this.recordFrames();
+            }
+        }, 1000);
+    }
+
+    recordFrames() {
+        this.recordedFrames = [];
+        this.isRecording = true;
+
+        // Record for 3 seconds
+        setTimeout(() => {
+            this.isRecording = false;
+            document.getElementById('recording-overlay').classList.add('hidden');
+
+            if (this.recordedFrames.length === 0) {
+                alert("No frames captured! Ensure camera is tracking.");
+                return;
+            }
+
+            // Open Save Dialog
+            const modal = document.getElementById('gesture-modal');
+            const inputName = document.getElementById('gesture-name');
+            const inputKey = document.getElementById('gesture-key');
+
+            modal.classList.remove('hidden');
+            inputName.value = '';
+            inputKey.value = '';
+            inputName.focus();
+
+        }, 3000);
     }
 
     setupUI() {
@@ -88,6 +224,10 @@ class App {
                     toggleBtn.textContent = 'Switch to Keyboard Mode';
                     statusDiv.textContent = 'Camera Active - Mirror your expressions!';
                     statusDiv.className = 'status active';
+
+                    // Show Record Button
+                    const btnRecord = document.getElementById('btn-record');
+                    if (btnRecord) btnRecord.style.display = 'block';
                 } else {
                     statusDiv.textContent = 'Camera access denied or unavailable';
                     statusDiv.className = 'status error';
@@ -100,6 +240,10 @@ class App {
                 toggleBtn.textContent = 'Enable Camera Tracking';
                 statusDiv.textContent = 'Keyboard Mode: Press S/E/T for expressions';
                 statusDiv.className = 'status';
+
+                // Hide Record Button
+                const btnRecord = document.getElementById('btn-record');
+                if (btnRecord) btnRecord.style.display = 'none';
             }
         });
     }
