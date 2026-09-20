@@ -90,9 +90,12 @@ export class Particles {
                 positions[i * 3 + 1] = y;
                 positions[i * 3 + 2] = z;
             } else {
+                // Park unused particles far beyond the far clip plane so they
+                // don't pile up as a bright dot at the origin (there are only
+                // ~468 face landmarks but 2500 particles).
                 positions[i * 3] = 0;
                 positions[i * 3 + 1] = 0;
-                positions[i * 3 + 2] = 0;
+                positions[i * 3 + 2] = -100000;
             }
         }
         posAttribute.needsUpdate = true;
@@ -112,7 +115,7 @@ export class Particles {
             } else {
                 targetPositions[i * 3] = 0;
                 targetPositions[i * 3 + 1] = 0;
-                targetPositions[i * 3 + 2] = 0;
+                targetPositions[i * 3 + 2] = -100000;
             }
         }
 

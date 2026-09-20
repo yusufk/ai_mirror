@@ -99,6 +99,24 @@ export class FaceGeometry {
             types[i] = type;
         }
 
+        // The canonical FaceData is only ~16 units tall, whereas the
+        // camera-tracked face spans ~500 units (scale 1000). Without matching
+        // them, the idle/neutral face renders as a tiny cluster in the centre.
+        // Normalise: centre on origin and scale so the face is ~500 units tall.
+        // Preserve the original orientation (no axis negation) — negating axes
+        // turns the face inside-out / inverts it.
+        const cx = (minX + maxX) / 2;
+        const cy = (minY + maxY) / 2;
+        const cz = (minZ + maxZ) / 2;
+        const height = (maxY - minY) || 1;
+        const norm = 500 / height;
+        for (let i = 0; i < count; i++) {
+            const i3 = i * 3;
+            positions[i3]     = (positions[i3] - cx) * norm;
+            positions[i3 + 1] = (positions[i3 + 1] - cy) * norm;
+            positions[i3 + 2] = (positions[i3 + 2] - cz) * norm;
+        }
+
         return { positions, types };
     }
 }

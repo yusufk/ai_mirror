@@ -25,7 +25,10 @@ class App {
 
         // Camera
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
-        this.camera.position.z = 800; // Further zoomed out for better perspective
+        // Position the camera so the ~500-unit-tall face fills most of the
+        // viewport. Computed from FOV + aspect so it fits on any screen
+        // (portrait phones included) without cropping.
+        this.camera.position.z = this.fitCameraZ();
 
         // Renderer
         this.renderer = new THREE.WebGLRenderer({
@@ -51,8 +54,26 @@ class App {
         this.particles.loadGestures(this.gestureManager.getAllGestures());
     }
 
-    connectFaceTracker() {
-        this.faceTracker.onBlink = () => this.particles.onCameraBlink();
+    // Compute camera Z so the face (~500 units tall, ~420 wide) fills ~78% of
+    // the viewport. On portrait/narrow screens, pull back so width also fits.
+    fitCameraZ() {
+        const FACE_HEIGHT = 500;
+        const FACE_WIDTH = 440;
+        const FILL = 0.78; // target fraction of the smaller viewport dimension
+        const fovRad = 75 * Math.PI / 180;
+        const aspect = window.innerWidth / window.innerHeight;
+
+        // z needed to fit the face height into FILL of the vertical view
+        const zForHeight = (FACE_HEIGHT / FILL) / (2 * Math.tan(fovRad / 2));
+        // z needed to fit the face width into FILL of the horizontal view
+        const hFov = 2 * Math.atan(Math.tan(fovRad / 2) * aspect);
+        const zForWidth = (FACE_WIDTH / FILL) / (2 * Math.tan(hFov / 2));
+
+        // Use the larger (further-back) so neither dimension crops.
+        return Math.max(zForHeight, zForWidth);
+    }
+
+    connectFaceTracker() {        this.faceTracker.onBlink = () => this.particles.onCameraBlink();
         this.faceTracker.onSmile = () => this.particles.onCameraSmile();
         this.faceTracker.onEyebrowRaise = () => this.particles.onCameraEyebrowRaise();
         this.faceTracker.onRotation = (pitch, yaw) => this.particles.onCameraRotation(pitch, yaw);
@@ -254,6 +275,7 @@ class App {
             this.height = window.innerHeight;
 
             this.camera.aspect = this.width / this.height;
+            this.camera.position.z = this.fitCameraZ();
             this.camera.updateProjectionMatrix();
 
             this.renderer.setSize(this.width, this.height);
