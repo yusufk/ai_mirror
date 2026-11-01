@@ -174,7 +174,17 @@ export class AudioUI {
         this.el('sa-latency').textContent = lat
             ? `${lat.total.toFixed(0)} ms${lat.outputKnown ? '' : ' (output not reported)'}`
             : 'press play';
-        this.el('sa-fps').textContent = this.faceTracker.isActive ? `${this.faceTracker.fps} fps` : '-';
+        const fpsEl = this.el('sa-fps');
+        if (this.faceTracker.isActive) {
+            const fps = this.faceTracker.fps;
+            // Chrome throttles camera processing for background windows.
+            const slow = fps < 10;
+            fpsEl.textContent = slow ? `${fps} fps (keep window in front)` : `${fps} fps`;
+            fpsEl.style.color = slow ? '#ffaa00' : '';
+        } else {
+            fpsEl.textContent = '-';
+            fpsEl.style.color = '';
+        }
     }
 
     /** Top-down view: screen at top, speakers fixed, head arrow turns. */
