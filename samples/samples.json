@@ -1,0 +1,50 @@
+[
+    {
+        "file": "left-right-test.m4a",
+        "title": "Left / right test",
+        "hint": "Calibration: a tone on the left, then the right",
+        "author": "Atomicdragon136",
+        "license": "Public domain",
+        "source": "https://commons.wikimedia.org/wiki/File:Left_and_right_test.ogg"
+    },
+    {
+        "file": "rain-gutter.m4a",
+        "title": "Rain on a gutter",
+        "hint": "Rain all round, gutter drips in one spot",
+        "author": "aldor",
+        "license": "Public domain",
+        "source": "https://commons.wikimedia.org/wiki/File:Gutter.ogg"
+    },
+    {
+        "file": "thunderstorm.m4a",
+        "title": "Thunderstorm",
+        "hint": "Big thunder roll about 15 s in",
+        "author": "stephan",
+        "license": "Public domain",
+        "source": "https://commons.wikimedia.org/wiki/File:Thunderstorm_after_hot_summer_day_17_minutes_01_of_04.ogg"
+    },
+    {
+        "file": "flea-market-rain.m4a",
+        "title": "Flea market in the rain",
+        "hint": "Voices to the right, rain overhead",
+        "author": "stephan",
+        "license": "Public domain",
+        "source": "https://commons.wikimedia.org/wiki/File:Flea_market_in_the_rain.ogg"
+    },
+    {
+        "file": "forest-birds.m4a",
+        "title": "Forest birds",
+        "hint": "Individual birds dotted around you",
+        "author": "nille",
+        "license": "Public domain",
+        "source": "https://commons.wikimedia.org/wiki/File:20090610_0_ambience.ogg"
+    },
+    {
+        "file": "train-passing.m4a",
+        "title": "Train passing",
+        "hint": "A moving source: approaches and rumbles past",
+        "author": "felix.blume",
+        "license": "CC0",
+        "source": "https://commons.wikimedia.org/wiki/File:Train_passing_by_in_the_Wirikuta_Desert_(Mexico,_SLP).wav"
+    }
+]

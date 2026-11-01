@@ -15,6 +15,25 @@ A real-time, interactive 3D holographic face that mirrors your expressions using
 - 🔄 **Head Rotation** - Follows your head movements
 - ⌨️ **Keyboard Controls** - Manual expression control (S/E/T keys)
 - 🎨 **Viki-Style Aesthetic** - Large, bright cyan/white particles in a holographic grid
+- 🎧 **Head-Tracked Spatial Audio** - Load any clip; its sound stays fixed to the screen as you turn your head, on any headphones
+
+## 🎧 Spatial Audio (new)
+
+On headphones, sound normally turns with your head. The Spatial Audio panel
+(bottom left) fixes that using the same webcam face tracking:
+
+1. Pick a **Test clip** (six public domain / CC0 recordings in `samples/`, see
+   `samples/CREDITS.md`), or choose your own video or audio file (it never leaves your machine).
+2. Press play, then pick a mode:
+   - **Stereo**: plain playback, for comparison
+   - **Speakers**: stereo rendered as two virtual speakers either side of the screen (HRTF)
+   - **Head tracked**: the speakers stay put while your head turns
+3. Turn your head. The radar shows your head (blue arrow) and the speakers (green).
+   If the arrow turns the wrong way, tick **Flip direction**.
+
+Tips: wired headphones give the lowest latency. On Bluetooth, try **Prediction → Auto**.
+For mono clips (e.g. a MacBook mic recording) set **Speaker width** to about 10°.
+Press **C** to recentre.
 
 ## 🚀 Live Demo
 
@@ -23,7 +42,8 @@ A real-time, interactive 3D holographic face that mirrors your expressions using
 ## 🛠️ Technology Stack
 
 - **Three.js** - 3D rendering and particle system
-- **MediaPipe Face Mesh** - Real-time facial landmark detection
+- **MediaPipe Face Landmarker** - Facial landmarks, blendshapes and head pose matrix
+- **Web Audio API** - HRTF panners for binaural rendering
 - **WebGL Shaders** - Custom vertex/fragment shaders for effects
 - **Pure JavaScript** - No build tools required
 
@@ -83,7 +103,11 @@ web_graphics/
 │   ├── particles.js       # Particle system & shaders
 │   ├── face-geometry.js   # Face mesh generation
 │   ├── face-data.js       # Face vertex/triangle data
-│   └── face-tracker.js    # Camera & MediaPipe integration
+│   ├── face-tracker.js    # Camera & MediaPipe Face Landmarker
+│   ├── head-pose.js       # Pose maths: matrix to angles, One Euro filter, prediction
+│   ├── spatial-audio.js   # Web Audio HRTF virtual speakers
+│   └── audio-ui.js        # Spatial audio panel and radar
+├── tests/                 # node --test tests/*.test.mjs
 ├── Screenshot...png       # Viki reference image
 └── README.md              # This file
 ```
